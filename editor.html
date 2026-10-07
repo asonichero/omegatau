@@ -167,7 +167,7 @@
   <div id="stat"></div>
 </div>
 
-<script>window.FS_BUILD="20261008-0500";(function(){var s=["vendor/three.min.js", "vendor/OrbitControls.js", "starlight-engine.js", "js/content.js", "js/edits.js", "js/poses.js", "js/room.js", "js/bodies.js", "js/scene.js", "js/editor-setup.js"];for(var i=0;i<s.length;i++)document.write('<script src="'+s[i]+'?v='+window.FS_BUILD+'"><\/script>');})();</script>
+<script>window.FS_BUILD="20261008-0600";(function(){var s=["vendor/three.min.js", "vendor/OrbitControls.js", "starlight-engine.js", "js/content.js", "js/edits.js", "js/poses.js", "js/room.js", "js/bodies.js", "js/scene.js", "js/editor-setup.js"];for(var i=0;i<s.length;i++)document.write('<script src="'+s[i]+'?v='+window.FS_BUILD+'"><\/script>');})();</script>
 <script>
 (function () {
 'use strict';
@@ -645,6 +645,9 @@ const Sound = (() => {
   const clap = (strength = 1) => {
     if (!ctx || !sc.sound) return;
     const t = ctx.currentTime, k = 0.25 + 0.2 * strength;
+    if (sc.implement === 'pingpong') { burst(t, 0.03, 3300, k); burst(t + 0.003, 0.05, 1300, 0.5 * k); return; }
+    if (sc.implement === 'housepaddle') { burst(t, 0.08, 1700, 1.2 * k); burst(t + 0.003, 0.13, 340, 1.0 * k); burst(t + 0.006, 0.05, 3800, 0.3 * k); return; }
+    if (sc.implement === 'ownpaddle') { burst(t, 0.07, 2000, 1.1 * k); burst(t + 0.003, 0.11, 420, 0.8 * k); burst(t + 0.006, 0.05, 4200, 0.35 * k); return; }
     if (sc.implement === 'hairbrush') {
       // Wood: a sharper, drier crack with a short hollow knock under it.
       burst(t, 0.04, 3600, 1.0 * k); burst(t + 0.004, 0.06, 700, 0.55 * k);
@@ -736,7 +739,7 @@ document.getElementById('sc-on').onclick = () => {
   placeChars(); refreshSceneUI();
 };
 // Positions: across the lap, bent over the table with palms flat on it, or standing with hands on head.
-[['lap', 'Across the lap'], ['case', 'Over the table'], ['head', 'Hands on head'], ['knees', 'Hands on the chair'], ['spread', 'Bent over, feet spread'], ['hips', 'Hips'], ['astride', 'Astride']].forEach(([id, label]) => {
+[['lap', 'Across the lap'], ['case', 'Over the desk'], ['head', 'Hands on head'], ['knees', 'Hands on the chair'], ['spread', 'Bent over, feet spread'], ['hips', 'Hips'], ['astride', 'Astride']].forEach(([id, label]) => {
   const b = document.createElement('button');
   b.textContent = label; b.dataset.pos = id;
   b.onclick = () => {
@@ -751,17 +754,18 @@ document.getElementById('sc-on').onclick = () => {
 const POSITIONS_OK = !!S.POSITIONS;
 function refreshPositions() {
   // Spread feet: dual-strike implements only (see IMPLEMENTS.dual).
-  if (sc.position === 'spread' && !S.IMPLEMENTS[sc.implement].dual) { sc.implement = Object.keys(S.IMPLEMENTS).find(n => S.IMPLEMENTS[n].dual) || 'hand'; if (scn) scn.setImplement(sc.implement); }
-  document.querySelectorAll('#sc-implements button').forEach(b => { b.disabled = sc.position === 'spread' && !S.IMPLEMENTS[b.dataset.impl].dual; });
+  if (sc.position === 'spread' && !dualImpl(sc.implement)) { sc.implement = (EDITOR.implements.find(([n]) => dualImpl(n)) || ['hand'])[0]; if (sess) { sess.setImplement(sc.implement); if (sc.loop) scn.setLoop(true); else scn.setBeat(sc.beat); } }
+  document.querySelectorAll('#sc-implements button').forEach(b => { b.disabled = sc.position === 'spread' && !dualImpl(b.dataset.impl); });
   document.querySelectorAll('#sc-position button').forEach(b => { b.classList.toggle('on', b.dataset.pos === sc.position); if (!POSITIONS_OK && b.dataset.pos !== 'lap') { b.disabled = true; b.title = 'starlight-engine.js is out of date: reload without the cache (Ctrl+Shift+R)'; } });
   if (typeof refreshImplements === 'function') refreshImplements();
 }
-// Implements (engine IMPLEMENTS): what the disciplinarian holds.
-Object.keys(S.IMPLEMENTS).forEach(name => {
+// Implements (the game's: scene.js IMPLEMENTS): what the disciplinarian holds. The three paddles are the engine's paddle, reshaped and dressed by the game's session.
+const dualImpl = n => S.IMPLEMENTS[EDITOR.engineImpl(n)].dual;
+EDITOR.implements.forEach(([name, label, blurb]) => {
   const b = document.createElement('button');
-  b.textContent = name === 'hand' ? 'Hand' : name[0].toUpperCase() + name.slice(1).replace('brush', ' brush');
+  b.textContent = label; b.title = blurb;
   b.dataset.impl = name;
-  b.onclick = () => { if (PE.on) PE.keep(); sc.implement = name; if (scn) scn.setImplement(name); if (PE.on) PE.settle(); refreshImplements(); };
+  b.onclick = () => { if (PE.on) PE.keep(); sc.implement = name; if (sess) { sess.setImplement(name); if (sc.loop) scn.setLoop(true); else scn.setBeat(sc.beat); } if (PE.on) PE.settle(); refreshImplements(); };
   document.getElementById('sc-implements').appendChild(b);
 });
 // The skirt in the scene: down, hitched up at the back (the game's), or off.

@@ -5576,7 +5576,10 @@ const len3 = v => Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 // 'briefs' to the thighs, see briefsDown), bunched there, or pulls it back up. Each lowered
 // garment has its own gathered waistband (ch.bunches).
 function setLowered(ch, id, on) {
-  const L = ch.spec.m.wardrobe && ch.spec.m.wardrobe[id];
+  const wd = ch.spec.m.wardrobe;
+  let L = wd && wd[id];
+  // 'bottom' means the bottoms she is wearing: a look may swap them for others (a sleepwear look keeps its own under another key).
+  if (id === 'bottom' && wd && !(ch.layers || []).includes(L)) L = Object.values(wd).find(x => x && x.kind === 'bottom' && (ch.layers || []).includes(x)) || L;
   if (!L || (on && !(ch.layers || []).includes(L))) return;
   ch.lowered = ch.lowered || new Set();
   if (on === ch.lowered.has(L)) return;
