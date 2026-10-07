@@ -1,10 +1,10 @@
-// Birchwood House — editor setup. The character viewer's UI (editor.html) works on S.PRESETS and S.ORDER; here they are replaced with
-// the game's cast (the six residents, and the four looks the player can have), built the way the game builds them. The built-in design
+// ΩΤΚ Companion — editor setup. The character viewer's UI (editor.html) works on S.PRESETS and S.ORDER; here they are replaced with
+// the game's cast (the six sisters, and Avery, the player), built the way the game builds them. The built-in design
 // is kept apart so the editor's reports know what a change is a change from, and the furniture, pose edits and held hands of the game's own
 // scene are exposed for the viewer's discipline scene to use.
 (function () {
 'use strict';
-const S = window.Starlight, B = window.FairyShoeBodies, C = window.FairyShoeContent, SC = window.FairyShoeScene, Ed = window.FairyShoeEdits;
+const S = window.Starlight, B = window.OtkBodies, C = window.OtkContent, SC = window.OtkScene, Ed = window.OtkEdits;
 
 const builtIn = {};
 for (const id of C.ORDER) builtIn[id] = B.BODIES[id]();

@@ -78,12 +78,12 @@ test('pose entries are grouped per position, the same slot merged, and reported 
 test('a design report names only what changed from the built-in design, in a form the design parser reads back', () => {
   const base = { height: 160, outfit: { hair: 0x5a1e12, hairStyle: 'long' }, wardrobe: { top: { color: 2, sleeves: 1 } } };
   const cur = { height: 170, outfit: { hair: 0x112233, hairStyle: 'long' }, wardrobe: { top: { color: 2 } } };
-  const text = Ov.designReport('red', 'Red', base, cur);
-  assert.match(text, /Design: Red \(red\)/);
+  const text = Ov.designReport('lila', 'Lila', base, cur);
+  assert.match(text, /Design: Lila \(lila\)/);
   const patch = Ov.parseDesign(text.split('\n\n')[0].split('\n').slice(2).join('\n'));
   assert.deepEqual(patch, { height: 170, outfit: { hair: 0x112233 }, wardrobe: { top: { sleeves: null } } });
   assert.deepEqual(Ov.deepMerge(base, patch), cur);
-  assert.match(Ov.designReport('red', 'Red', base, base), /No changes/);
+  assert.match(Ov.designReport('lila', 'Lila', base, base), /No changes/);
 });
 
 test('asking for an implement: options follow the resident, replies are filled, only a first exchange counts', () => {
@@ -91,13 +91,13 @@ test('asking for an implement: options follow the resident, replies are filled, 
   assert.deepEqual(R.fetchOptions(calm, 'switch').map(o => o.id), ['ask', 'tell', 'explain', 'checkin']);
   assert.deepEqual(R.fetchOptions(bitter, 'switch').map(o => o.id), ['ask', 'tell', 'self', 'checkin']);
   for (const s of [calm, bitter, { ...calm, wil: 7 }, { ...calm, com: 1, val: 3 }]) for (const o of R.fetchOptions(s, 'paddle')) {
-    const t = R.fetchReply(o.id, s, 'jack', 'Ma\'am', 1.0); assert.ok(t && !/\{\w+\}/.test(t), o.id + ': ' + t);
+    const t = R.fetchReply(o.id, s, 'jess', 'Avery', 1.0); assert.ok(t && !/\{\w+\}/.test(t), o.id + ': ' + t);
   }
-  assert.match(R.fetchReply('checkin', calm, 'red', 'Ma\'am', 1.2), /end of what I can take/);
-  const g = { chars: { red: { stats: { ...calm, val: 3 }, carry: {} } }, roster: ['red'], collection: [], leftToday: [], cards: [], queue: [], cursor: 0, notices: [] };
-  const r = R.applyFetch(g, 'red', 'ask'); assert.equal(g.chars.red.stats.val, 4); assert.equal(r.changes.length, 1);
-  const g2 = { ...g, chars: { red: { stats: { ...bitter }, carry: {} } } };
-  R.applyFetch(g2, 'red', 'self'); assert.equal(g2.chars.red.stats.val, 1);
+  assert.match(R.fetchReply('checkin', calm, 'lila', 'Avery', 1.2), /end of what I can take/);
+  const g = { chars: { lila: { stats: { ...calm, val: 3 }, carry: {} } }, roster: ['lila'], collection: [], leftToday: [], cards: [], queue: [], cursor: 0, notices: [] };
+  const r = R.applyFetch(g, 'lila', 'ask'); assert.equal(g.chars.lila.stats.val, 4); assert.equal(r.changes.length, 1);
+  const g2 = { ...g, chars: { lila: { stats: { ...bitter }, carry: {} } } };
+  R.applyFetch(g2, 'lila', 'self'); assert.equal(g2.chars.lila.stats.val, 1);
 });
 
 test('a report names its position ("Position: chair."); the old "Over the case." still means the table', () => {

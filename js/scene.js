@@ -1,29 +1,34 @@
-// Birchwood House — the live correction. A wrapper over the engine's discipline scene: it builds the room, the furniture and the
+// ΩΤΚ Companion — the live correction. A wrapper over the engine's discipline scene: it builds the room, the furniture and the
 // two bodies, lets the player smack, run and stop whenever they like, change position, implement, layers, pace and strength in
 // the middle of it, and reports how far the resident has been brought (the pain model's distress), which is all the rules read.
 (function (root) {
 'use strict';
-const S = root.Starlight, T = root.THREE, Room = root.FairyShoeRoom, Poses = root.FairyShoePoses || {};
+const S = root.Starlight, T = root.THREE, Room = root.OtkRoom, Poses = root.OtkPoses || {};
 const V3 = T.Vector3;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 // id, label, what it is. 'chair' is the engine's hands-on-knees scene with a chair set in front for the hands.
 const POSITIONS = [
   ['lap', 'Across the lap', 'Seated, you draw them down across your knees.'],
-  ['case', 'Over the table', 'Bent at the hips over the table, palms flat on the boards.'],
+  ['case', 'Over the desk', 'Bent at the hips over the desk, palms flat on the wood.'],
   ['head', 'Hands on head', 'Standing, fingers laced on top of the head.'],
   ['chair', 'Hands on the chair', 'Bent forward, hands on the seat of the chair you sit in.'],
   ['spread', 'Bent over, feet apart', 'Bent forward, feet wide, palms on the thighs. Wide implements only.'],
 ];
-// 'hips' is an editor-only base position (not in POSITIONS, so never offered in the game): the table scene, bent at the hips.
+// 'hips' is an editor-only base position (not in POSITIONS, so never offered in the game): the desk scene, bent at the hips.
 // 'astride' is another editor-only base position: the lap scene (the player seated on the chair) with its own pose edits.
 const ENGINE_POSITION = { lap: 'lap', astride: 'lap', hips: 'case', case: 'case', head: 'head', chair: 'knees', spread: 'spread' };
 const IMPLEMENTS = [
   ['hand', 'Hand', 'Nothing to fetch. Stings, and fades quickly.'],
-  ['hairbrush', 'Hairbrush', 'Light and sharp; a dull ache follows.'],
-  ['rod', 'Willow switch', 'Thin, fast, and leaves stripes. Hardest on a first stroke.'],
-  ['paddle', 'Cedar paddle', 'Broad and heavy: both sides at once, a deep ache.'],
+  ['hairbrush', 'The hairbrush', 'From her desk. Light and sharp; a dull ache follows.'],
+  ['pingpong', 'The ping-pong paddle', 'Off the rec room table. Light and quick: more sting than ache.'],
+  ['ownpaddle', 'Her own paddle', 'Down off the wall, and hers. Broad and heavy: both sides at once, a deep ache.'],
+  ['housepaddle', 'The house paddle', 'Off the mantel. The heaviest in the house, and everyone knows it.'],
 ];
+// Each implement in the room is one the engine has: the three paddles are the engine's paddle, a lighter one and a heavier one (and the strength each lands with). The
+// engine's own names (the editor uses them: 'paddle', 'rod') pass through unchanged.
+const IMPL = { hand: ['hand', 1], hairbrush: ['hairbrush', 1], pingpong: ['paddle', 0.62], ownpaddle: ['paddle', 1], housepaddle: ['paddle', 1.3] };
+const engineImpl = n => (IMPL[n] || [n, 1])[0], implFactor = n => (IMPL[n] || [n, 1])[1];
 // Bottoms and briefs are down or up; a skirt is down (it drapes, and is simulated), hitched up at the back, or off.
 const SKIRT_MODES = ['down', 'up', 'off'];
 const skirtMode = v => v === true ? 'down' : !v ? 'off' : SKIRT_MODES.includes(v) ? v : 'down';
@@ -56,6 +61,9 @@ const Sound = (() => {
     if (!ctx || !on) return;
     const t = ctx.currentTime, k = 0.25 + 0.2 * strength;
     if (impl === 'hairbrush') { burst(t, 0.04, 3600, k); burst(t + 0.004, 0.06, 700, 0.55 * k); }
+    else if (impl === 'pingpong') { burst(t, 0.03, 3300, k); burst(t + 0.003, 0.05, 1300, 0.5 * k); }
+    else if (impl === 'housepaddle') { burst(t, 0.08, 1700, 1.2 * k); burst(t + 0.003, 0.13, 340, 1.0 * k); burst(t + 0.006, 0.05, 3800, 0.3 * k); }
+    else if (impl === 'ownpaddle') { burst(t, 0.07, 2000, 1.1 * k); burst(t + 0.003, 0.11, 420, 0.8 * k); burst(t + 0.006, 0.05, 4200, 0.35 * k); }
     else if (impl === 'rod') { burst(t, 0.03, 4800, k); burst(t + 0.002, 0.05, 1500, 0.4 * k); }
     else if (impl === 'paddle') { burst(t, 0.07, 2000, 1.1 * k); burst(t + 0.003, 0.11, 420, 0.8 * k); burst(t + 0.006, 0.05, 4200, 0.35 * k); }
     else { burst(t, 0.09, 2500, 0.9 * k); burst(t + 0.008, 0.05, 1100, 0.5 * k); }
@@ -401,7 +409,7 @@ function createSession(scene, opts, env = {}) {
       layers: { bottoms: false, briefs: false, ...(opts.layers || {}), skirt: (opts.layers && opts.layers.skirt) || 'up' }   /* a skirt is always hitched up for a correction (the editor may ask for another) */, implement: opts.implement || 'hand', position: opts.position || 'case' };
     let g = null, s = null, scn = null, furniture = null, plant = null, pins = null, lookAhead = null, fixedPins = false;
 
-    const derive = () => { const pace = PACE[st.paceIdx], m = STRENGTH[st.strengthIdx]; return { speed: pace, strength: Math.min(1, 0.66 * m), hold: 0.3 / pace, dwell: 0.6 / pace, face: clamp(0.1 + 0.45 * m * pace, 0.1, 1) }; };
+    const derive = () => { const pace = PACE[st.paceIdx], m = STRENGTH[st.strengthIdx]; return { speed: pace, strength: Math.min(1.3, 0.66 * m * implFactor(st.implement)), hold: 0.3 / pace, dwell: 0.6 / pace, face: clamp(0.1 + 0.45 * m * pace, 0.1, 1) }; };
 
     function teardown() {
       if (!scn) return;
@@ -464,8 +472,8 @@ function createSession(scene, opts, env = {}) {
       prepareSubject(s);
       applyLayers();
       let impl = cfg.implement || st.implement;
-      if (position === 'spread' && !S.IMPLEMENTS[impl].dual) impl = 'paddle';
-      st.implement = impl; scn.setImplement(impl); scn.setBeat('relaxed');
+      if (position === 'spread' && !S.IMPLEMENTS[engineImpl(impl)].dual) impl = 'ownpaddle';
+      st.implement = impl; scn.setImplement(engineImpl(impl)); scn.setBeat('relaxed');
       scn.timing = { ...scn.timing, speed: D.speed };
       scn.noMarks = position === 'hips';   // the Hips base position takes no colour from a smack, and gives none back
       furniture = null; plant = furnishDiscipline(scene, scn, g, s, position, seatTop);   // furniture, the seat, the pose edits (shared with the editor)
@@ -496,7 +504,7 @@ function createSession(scene, opts, env = {}) {
         applyLayers(true);
       },
       // A live change of implement (to or from the hand). Anything else is fetched: see rebuild.
-      setImplement(n) { if (st.position === 'spread' && !S.IMPLEMENTS[n].dual) return false; st.implement = n; scn.setImplement(n); scn.setBeat('relaxed'); return true; },
+      setImplement(n) { if (st.position === 'spread' && !S.IMPLEMENTS[engineImpl(n)].dual) return false; st.implement = n; scn.setImplement(engineImpl(n)); scn.setBeat('relaxed'); return true; },
       // Builds the room and bodies again (a new position, or a new implement that has been fetched), keeping the pain and the marks.
       rebuild(cfg) { make(cfg); },
       // Composure held still (nothing fades, nothing builds) from here until the first smack or run begins again.
@@ -512,6 +520,13 @@ function createSession(scene, opts, env = {}) {
       stepPace(d) { st.paceIdx = clamp(st.paceIdx + d, 0, PACE.length - 1); const D = derive(); scn.timing = { ...scn.timing, speed: D.speed }; scn.severity = D.face; },
       stepStrength(d) { st.strengthIdx = clamp(st.strengthIdx + d, 0, STRENGTH.length - 1); scn.severity = derive().face; },
       stepRun(d) { st.runIdx = clamp(st.runIdx + d, 0, RUN.length - 1); },
+      // Where the correction starts (what the message said: Go Easy / No Mercy, Quick / Held Til It Lands): indices into STRENGTH, PACE and RUN. All of it can be changed live.
+      preset(p = {}) {
+        if (p.strength != null) st.strengthIdx = clamp(p.strength, 0, STRENGTH.length - 1);
+        if (p.pace != null) st.paceIdx = clamp(p.pace, 0, PACE.length - 1);
+        if (p.run != null) st.runIdx = clamp(p.run, 0, RUN.length - 1);
+        const D = derive(); scn.timing = { ...scn.timing, speed: D.speed }; scn.severity = D.face;
+      },
       canStrike() { return !st.ended && !scn.busy() && !(scn.pain && scn.pain.tooHarsh); },
       // One whole smack: lift, hold, strike, and the hand stays on the skin until the next.
       smack() { if (!api.canStrike()) return false; st.frozen = false; st.mode = 'single'; Sound.init(); const D = derive(); scn.cycle(D.strength, undefined, undefined, D.hold); st.since = 0; return true; },
@@ -902,5 +917,5 @@ function createStage(viewEl, { onGLProblem } = {}) {
   return { begin, tableau, end, loop, clearMarks, setCamera, onCameraTaken: fn => { api_onCam = fn; }, get cameraMode() { return cam.mode; }, renderer, camera, controls, scene, get session() { return session; }, resize };
 }
 
-root.FairyShoeScene = { TABLEAUX: [['corner', 'Corner time'], ['lines', 'Lines'], ['held', 'Held after (standing)'], ['heldalt', 'Held after (alternate, seated)'], ['warm', 'Warm words']], cameraPose, layerLabel, layerNext, skirtMode, furnishScene, holdChairHands, chairSeatTop, applyPoseOverrides, prepareSubject, furnishDiscipline, createSession, createTableau, createStage, POSITIONS, IMPLEMENTS, CAMERAS, LAYER_LABELS, PACE, STRENGTH, RUN, Sound };
+root.OtkScene = { engineImpl, implFactor, TABLEAUX: [['corner', 'Corner time'], ['lines', 'Lines'], ['held', 'Held after (standing)'], ['heldalt', 'Held after (alternate, seated)'], ['warm', 'Warm words']], cameraPose, layerLabel, layerNext, skirtMode, furnishScene, holdChairHands, chairSeatTop, applyPoseOverrides, prepareSubject, furnishDiscipline, createSession, createTableau, createStage, POSITIONS, IMPLEMENTS, CAMERAS, LAYER_LABELS, PACE, STRENGTH, RUN, Sound };
 })(window);

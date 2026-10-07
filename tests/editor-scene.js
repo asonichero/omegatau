@@ -6,13 +6,13 @@ const { chromium } = require('playwright');
   const ctx = await b.newContext(), p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   // a stale saved-override entry from the old editor must change nothing
-  await p.addInitScript(() => { try { localStorage.setItem('fairyshoe.overrides.v1', JSON.stringify({ designs: { red: { height: 90 } }, poses: [] })); } catch (e) {} });
+  await p.addInitScript(() => { try { localStorage.setItem('otk.overrides.v1', JSON.stringify({ designs: { red: { height: 90 } }, poses: [] })); } catch (e) {} });
   await p.goto(process.argv[2] || 'http://localhost:8765/editor.html'); await p.waitForSelector('#sc-on');
   await p.click('#sc-on'); await p.waitForTimeout(2500);
   const r = await p.evaluate(() => { const v = window.__viewer, scn = v.scn, s = scn.s, g = scn.g; return { session: !!(v.sess && v.sess.scn === scn && typeof v.sess.setLayer === 'function' && typeof v.sess.smack === 'function'), position: v.sc.position, hybrid: !!(s.skirt && s.skirt.hybrid), height: Math.round(v.current[v.sc.subject].height), pressFloor: g.pressFloor, seatTop: scn.seatTop, hasSkirt: !!s.skirt, gathered: !!(s.skirt && s.skirt.gathered) }; });
   console.log(JSON.stringify(r));
   const bad = [];
-  if (!r.session) bad.push('the editor\'s scene should be one of the game\'s sessions (FairyShoeScene.createSession)');
+  if (!r.session) bad.push('the editor\'s scene should be one of the game\'s sessions (OtkScene.createSession)');
   if (r.hasSkirt && !r.gathered) bad.push('the editor\'s skirt should start hitched up, as the game\'s does');
   if (r.hasSkirt && !r.hybrid) bad.push('the subject\'s skirt should be the hybrid one');
   if (r.position === 'lap' && !(r.seatTop > 0 && r.pressFloor > r.seatTop)) bad.push('the seated disciplinarian should be pressed flat on the seat');

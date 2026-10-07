@@ -1,4 +1,4 @@
-// Birchwood House — edits: what the editor page (editor.html) does with a design or a pose it has been given or has made. Nothing here is
+// ΩΤΚ Companion — edits: what the editor page (editor.html) does with a design or a pose it has been given or has made. Nothing here is
 // stored and the game never reads it: the editor only previews, and prints a REPORT (designReport, poseReport) to paste into the project
 // (js/bodies.js for a design, js/poses.js for poses) to make an edit permanent. Pure logic, no three.js, so it also runs in Node for the tests.
 (function (root) {
@@ -163,6 +163,6 @@ function designReport(id, name, base, cur) {
 }
 
 const api = { POSITIONS, deepMerge, parseDesign, parsePoses, parseReport, parsePoseJSON, groupPoses, poseReport, designReport, diff };
-root.FairyShoeEdits = api;
+root.OtkEdits = api;
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

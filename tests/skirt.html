@@ -5,9 +5,9 @@
 <script src="/starlight-engine.js"></script><script src="/js/content.js"></script><script src="/js/edits.js"></script><script src="/js/poses.js"></script><script src="/js/room.js"></script><script src="/js/bodies.js"></script><script src="/js/scene.js"></script>
 <script>
 window.setup = function (id, pos, impl, mode) {
-  const B = FairyShoeBodies, C = FairyShoeContent;
-  const stage = window.stage || (window.stage = FairyShoeScene.createStage(document.getElementById('view')));
-  window.ses = stage.begin({ giver: B.keeper(window.__keeper || 'a'), subject: window.__patch ? FairyShoeEdits.deepMerge(B.spec(id), window.__patch) : B.spec(id), subjectId: id, position: pos, implement: impl, layers: { bottoms: true }, pain: { ...C.CHARACTERS[id].pain } });
+  const B = OtkBodies, C = OtkContent;
+  const stage = window.stage || (window.stage = OtkScene.createStage(document.getElementById('view')));
+  window.ses = stage.begin({ giver: B.keeper(window.__keeper || 'a'), subject: window.__patch ? OtkEdits.deepMerge(B.spec(id), window.__patch) : B.spec(id), subjectId: id, position: pos, implement: impl, layers: { bottoms: true }, pain: { ...C.CHARACTERS[id].pain } });
   window.clock = 0; window.skirt = ses.subject.skirt;
   // (the game forces a skirt to be hitched up; here the mode is applied afterwards so the loose cloth is tested too)
   // ('free' is simulated cloth, for the weight test; the discipline scenes' skirt is the shell)

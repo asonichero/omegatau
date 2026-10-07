@@ -1,8 +1,8 @@
 {
-  "name": "fairy-shoe",
+  "name": "otk-companion",
   "version": "0.1.0",
   "private": true,
-  "description": "Birchwood House: a halfway-house management game on the Starlight engine.",
+  "description": "ΩΤΚ Companion: a closed-network Probation companion on the Starlight engine.",
   "scripts": {
     "test": "node --test tests/*.test.js",
     "serve": "npx http-server . -p 8765 -c-1",

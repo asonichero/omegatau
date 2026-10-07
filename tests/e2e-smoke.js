@@ -30,9 +30,9 @@ async function liveControls(p) {
   // the scene pop-up: position, implement and clothes are chosen together, then confirmed; nothing moves before that
   await p.click(scene);
   const d0 = await p.evaluate(() => __fs.app.live.distress());
-  await p.click('.overlay .picks2 button:has-text("Over the table")');
-  await p.click('.overlay .picks2 button:has-text("Hairbrush")');
-  await p.click('.overlay .picks2 button:text-is("Tell Red"), .overlay .picks2 button:has-text("Tell ")');
+  await p.click('.overlay .picks2 button:has-text("Over the desk")');
+  await p.click('.overlay .picks2 button:has-text("Her own paddle")');
+  await p.click('.overlay .picks2 button:has-text("Tell ")');
   await p.click('.overlay .picks2 button:has-text("Bottoms")');
   if ((await state()).pos === 'case') throw new Error('nothing should change before the changes are confirmed');
   await p.click('.overlay button:text-is("Confirm changes")');
@@ -40,7 +40,7 @@ async function liveControls(p) {
   const lines = await p.locator('#veil p.ln').count(); if (lines < 4) throw new Error('the interlude should tell everything that changed: ' + lines);
   await p.click('#veil button:text-is("Continue")');
   await p.waitForSelector('#veil', { state: 'hidden', timeout: 30000 });
-  s = await state(); if (s.impl !== 'hairbrush' || s.pos !== 'case') throw new Error('the changes did not apply: ' + JSON.stringify(s));
+  s = await state(); if (s.impl !== 'ownpaddle' || s.pos !== 'case') throw new Error('the changes did not apply: ' + JSON.stringify(s));
   const d1 = await p.evaluate(() => __fs.app.live.distress()); if (Math.abs(d1 - d0) > 1e-6) throw new Error('composure should be frozen through the change: ' + d0 + ' -> ' + d1);
   await p.waitForTimeout(1200); if (Math.abs(await p.evaluate(() => __fs.app.live.distress()) - d0) > 1e-6) throw new Error('composure should stay frozen until a smack');
   if (!(await p.locator('.speech:not([hidden])').count())) throw new Error('the subject should speak when the scene reopens');
@@ -50,7 +50,7 @@ async function liveControls(p) {
 
 (async () => {
   const b = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'] });
-  const p = await b.newPage({ viewport: { width: +(process.env.W || 1280), height: +(process.env.H || 820) } });
+  const p = await b.newPage({ viewport: { width: +(process.env.W || 520), height: +(process.env.H || 900) } });
   const errs = [];
   p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   p.on('pageerror', e => errs.push(e.message));
@@ -58,39 +58,50 @@ async function liveControls(p) {
   await p.evaluate(() => localStorage.clear());
   await p.reload();
   await shot(p, 'intro', { fullPage: true });
-  await p.fill('input[type=text]', 'Keeper');
-  await p.click('text=Open the door');
-  await p.click('.overlay >> text=Begin');
-  await p.waitForSelector('.morning');
-  await p.click('.overlay >> text=Close');
+  await p.fill('input[type=text]', 'Avery');
+  await p.click('text=Open the app');
+  await p.waitForSelector('.doc'); await shot(p, 'memo', { fullPage: true });
+  if (!(await p.locator('.doc-entry').count() === 3)) throw new Error('the memo names three sisters');
+  await p.click('text=Acknowledge'); await p.waitForSelector('.login'); await p.click('text=Sign in');
+  await p.waitForSelector('.board', { timeout: 8000 });
   for (let day = 1; day <= 2; day++) {
-    for (let i = 0; i < 3; i++) { await p.locator('.res:not(.placed)').first().click(); await p.locator('.slot:not(.full)').first().click(); }
-    await p.waitForTimeout(1500); if (await p.locator('.evening').count()) throw new Error('the day must not begin by itself');
-    await p.click('button:text-is("Begin the day")');
-    await p.waitForSelector('.evening, .overlay:not([hidden])', { timeout: 8000 });
-    if (await p.locator('.overlay:not([hidden]) .primary').count()) await p.click('.overlay .primary');
+    if (day === 2) {   // after an evening, the president comes first
+      await p.waitForSelector('.presresp'); await shot(p, 'president', { fullPage: true });
+      if (!(await p.locator('.pres-msg p').count())) throw new Error('the president should have something to say');
+      await p.click('text=Go to today’s duties'); await p.waitForSelector('.board');
+    }
+    for (let i = 0; i < 3; i++) { await p.locator('.sister-chip:not(.assigned)').first().click(); await p.locator('.duty-slot:not(.taken)').first().click(); }
+    await p.waitForTimeout(800); if (await p.locator('.register').count()) throw new Error('the day must not begin by itself');
+    await p.click('button:has-text("Duties assigned")');
+    await p.waitForSelector('.register');
+    if (await p.locator('.post').count() !== 3) throw new Error('three posts, one per sister');
+    if (day === 1) await shot(p, 'evening', { fullPage: true });
     let guard = 0;
-    while (await p.locator('.evening').count() && guard++ < 6) {
-      const n = await p.evaluate(() => __fs.R.pendingCards(__fs.app.g).length);
-      if (!n) break;
-      if (guard === 1 && day === 1) await shot(p, 'evening', { fullPage: true });
-      if (guard === 1 && day === 1) {   // leaving for the menu in the evening and continuing returns to the evening, not a morning that cannot progress
+    while (guard++ < 6) {
+      const left = await p.evaluate(() => __fs.app.g.cards.filter(c => !c.done).map(c => c.id));
+      if (!left.length) break;
+      if (guard === 1 && day === 1) {   // leaving for the menu in the evening and continuing returns to the evening
         await p.click('button:text-is("Menu")'); await p.click('button:has-text("Continue")'); await p.waitForTimeout(400);
-        if (!(await p.locator('.evening').count())) throw new Error('Continue from the menu should return to the evening');
+        if (!(await p.locator('.register').count())) throw new Error('Continue from the menu should return to the evening');
       }
+      await p.locator('#post-' + left[0] + ' .dm-btn').click(); await p.waitForSelector('.composer');
       if (guard % 2) {   // a word
-        await p.locator('.choice').nth(1).click();
-        const w = p.locator('.words .choice:not([disabled])');
-        if (await w.count()) { await w.first().click(); await p.waitForSelector('.result'); if (day === 1 && guard === 1) await shot(p, 'reprieve', { fullPage: true }); await p.click('.result >> text=Next'); continue; }
+        await p.locator('.chip.reprieve:not(.muted)').first().click();
+        if (guard === 1 && day === 1) await shot(p, 'reprieve-draft', { fullPage: true });
+        await p.click('.send-btn'); await p.waitForSelector('.result');
+        await p.click('.result >> text=Next'); await p.waitForSelector('.register'); continue;
       }
-      await p.locator('.choice').first().click();
-      await p.click('text=Get started');
+      await p.locator('.chip:has-text("The Hairbrush")').click(); await p.locator('.chip:has-text("Clothed")').click();
+      if (guard === 2 && day === 1) await shot(p, 'composer', { fullPage: true });
+      await p.click('.send-btn');
       await p.waitForSelector('text=End the correction', { timeout: 90000 });
       if (await p.locator('.overlay:not([hidden]) h2:text-is("Your first correction")').count()) {   // the walk-through is offered once: take it, all the way
         await p.click('.overlay button:text-is("Walk me through")');
-        let n = 0; while (await p.locator('.coach').count() && n++ < 10) { await p.waitForSelector('.coach .primary'); await shot(p, 'tutorial-' + n); await p.click('.coach .primary'); await p.waitForTimeout(300); }
+        let n = 0; while (await p.locator('.coach').count() && n++ < 10) { await p.waitForSelector('.coach .primary'); await p.click('.coach .primary'); await p.waitForTimeout(300); }
         if (n !== 7) throw new Error('the walk-through should have 7 steps, saw ' + n);
       }
+      const st = await p.evaluate(() => ({ impl: __fs.app.live.implement, pos: __fs.app.live.position, lay: __fs.app.live.layers }));
+      if (st.impl !== 'hairbrush' || st.pos !== 'lap' || st.lay.bottoms) throw new Error('the message should set where it begins: ' + JSON.stringify(st));
       if (day === 1 && guard === 2) await liveControls(p);
       if (day === 1 && guard === 2) await p.evaluate(() => { __fs.app.g.candle = 8; });   // (enough for every aftercare scene)
       await p.click('text=End the correction');
@@ -103,24 +114,26 @@ async function liveControls(p) {
         await shot(p, 'after-Corner-Time');
         await p.click('.scenebar button'); await p.waitForSelector('.result');
         if (await p.locator('.result .choice:has-text("Lines")').count()) throw new Error('only one way for the evening to end');
-        // (the other scenes are built directly: each must come up and settle without an error)
-        for (const kind of ['lines', 'held', 'warm']) {
-          await p.evaluate(k => { const a = __fs.app; a.stage.tableau(k, { giver: __fs.B.keeper(a.keeper), subject: __fs.B.spec('red'), subjectId: 'red', layers: {} }); }, kind);
+        for (const kind of ['lines', 'held', 'warm']) {   // (the other scenes are built directly: each must come up and settle without an error)
+          await p.evaluate(k => { const a = __fs.app; a.stage.tableau(k, { giver: __fs.B.keeper(), subject: __fs.B.spec('lila'), subjectId: 'lila', layers: {} }); }, kind);
           await p.waitForTimeout(1200); await shot(p, 'after-' + kind);
         }
         await p.click('.result >> text=Next');
-      } else {   // Sent to Bed is free, fades to a few lines, and goes on as Next does
+      } else {
         await p.click('.result .choice:has-text("Sent to Bed")'); await p.click('#veil button:text-is("Next")', { timeout: 20000 });
       }
+      await p.waitForSelector('.register');
     }
-    // the evening may end with notices, then it is morning
-    await p.waitForSelector('.morning, .overlay:not([hidden])', { timeout: 8000 });
-    if (await p.locator('.overlay:not([hidden]) .primary').count()) await p.click('.overlay .primary');
-    await p.waitForSelector('.morning');
+    const sent = await p.locator('.sent-msg').count(); if (sent < 1) throw new Error('sent messages stay on the timeline');
+    await p.click('button:has-text("Probation Report")'); await p.waitForSelector('.report-line'); if (day === 1) await shot(p, 'report', { fullPage: true });
+    if (await p.locator('.report-line').count() < 1) throw new Error('the report has a line per sister');
+    await p.click('.full-btn:text-is("Submit")');
+    await p.waitForSelector('.presresp, .overlay:not([hidden]), .standing', { timeout: 20000 });
+    if (await p.locator('.overlay:not([hidden]) .primary').count()) { await p.click('.overlay .primary'); await p.waitForSelector('.presresp, .standing'); }
+    if (await p.locator('.standing').count()) break;
   }
-  const day = await p.evaluate(() => __fs.app.g.day), roster = await p.evaluate(() => __fs.app.g.roster.length);
-  const saved = await p.evaluate(() => !!localStorage.getItem('fairyshoe.v1'));
-  console.log(JSON.stringify({ day, roster, saved, errors: errs }));
+  const day = await p.evaluate(() => __fs.app.g.day), saved = await p.evaluate(() => !!localStorage.getItem('otk.v1'));
+  console.log(JSON.stringify({ day, saved, errors: errs }));
   await b.close();
-  if (errs.length || day !== 3 || roster !== 3 || !saved) process.exit(1);
+  if (errs.length || day < 2 || !saved) process.exit(1);
 })().catch(e => { console.error('FAIL', e.message.slice(0, 600)); process.exit(1); });

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Birchwood House — Character editor</title>
+<title>ΩΤΚ Companion — Character editor</title>
 <style>
   html, body { margin: 0; padding: 0; overflow: hidden; background: #16161b; font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: #e8e6e3; }
   #view { position: fixed; top: 0; left: 0; right: 320px; bottom: 0; }
@@ -251,7 +251,7 @@ let chars = {};
 const sc = { sound: true, position: 'lap', implement: 'hand', on: false, giver: 'keeper-a', subject: ORDER[0], beat: 'relaxed', loop: false, side: 'L', timing: { ...S.DEFAULT_TIMING }, palmAim: 0.65, skirt: 'up' };
 let scn = null;   // the engine's scene state while shown (sess.scn)
 let tab = null, tabKind = null;   // an aftercare scene shown in place of the discipline scene (see showTab)
-let sess = null;  // the game's own session (FairyShoeScene.createSession) running the discipline scene: the same code as in the game
+let sess = null;  // the game's own session (OtkScene.createSession) running the discipline scene: the same code as in the game
 // Pose editor state (see POSE EDITOR); while `on`, the scene is frozen and edited by hand.
 const PE = { on: false };
 
@@ -1356,8 +1356,8 @@ function animate() {
 // folded is remembered in this browser (per viewer), if storage is available.
 (() => {
   let shut = {};
-  try { shut = JSON.parse(localStorage.getItem('fairyshoe-editor-folds') || '{}'); } catch (e) {}
-  const save = () => { try { localStorage.setItem('fairyshoe-editor-folds', JSON.stringify(shut)); } catch (e) {} };
+  try { shut = JSON.parse(localStorage.getItem('otk-editor-folds') || '{}'); } catch (e) {}
+  const save = () => { try { localStorage.setItem('otk-editor-folds', JSON.stringify(shut)); } catch (e) {} };
   document.querySelectorAll('#panel h3').forEach(h => {
     const name = h.firstChild.textContent.trim().replace(/\s*—$/, '');
     const body = [];
