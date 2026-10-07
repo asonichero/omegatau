@@ -39,7 +39,17 @@ const avatar = (name, cls) => h('div', { class: 'avatar' + (cls ? ' ' + cls : ''
 function save() { if (app.g) store(SAVE_KEY, { g: app.g, title: app.title, settings: app.settings }); }
 function saveSettings() { store(SAVE_KEY + '.prefs', { title: app.title, settings: app.settings }); }
 
-function setScreen(node) { const a = $('#app'); a.replaceChildren(node); window.scrollTo(0, 0); }
+// A redraw of the same screen (a chip chosen, a panel opened) keeps your place; a different screen starts at the top. Coming back to the evening from the room or a result
+// returns to where you were (app.restoreY). Something that expands is brought into view (focusOn).
+function setScreen(node) {
+  const a = $('#app'), same = !!app.view && app.view === app.lastView;
+  let y = same ? window.scrollY : 0;
+  if (app.restoreY != null && app.view === 'evening') { y = app.restoreY; app.restoreY = null; }
+  app.lastView = app.view;
+  a.replaceChildren(node); window.scrollTo(0, y);
+  if (app.focus) { const sel = app.focus; app.focus = null; requestAnimationFrame(() => { const el = document.querySelector(sel); if (el) el.scrollIntoView({ block: sel.startsWith('#post') ? 'start' : 'nearest', behavior: 'smooth' }); }); }
+}
+function focusOn(sel) { app.focus = sel; }
 function showStage(on) { $('#stage').classList.toggle('on', on); document.body.classList.toggle('scene', on); if (on && app.stage) app.stage.resize(); }
 // A line of speech: shown, then faded after a reasonable time to read it (a couple of seconds plus about a third of a second a word).
 function say(id, text, label, sticky) {
@@ -203,7 +213,7 @@ function effLine(id) {
 function statsPanel(id) {
   const g = app.g, d = CH[id], c = g.chars[id], s = c.stats;
   const rows = C.STATS.map(k => h('div', { class: 'stat-row', title: C.STAT_HINTS[k] }, h('div', { class: 'stat-name' }, C.STAT_NAMES[k]), pips(s[k], k === 'wil' || k === 'res' ? 'hot' : '')));
-  return h('div', { class: 'stats-panel' },
+  return h('div', { class: 'stats-panel', id: 'stats-' + id },
     h('div', { class: 'stats-head' }, avatar(d.name), h('div', {}, h('div', { class: 'nm' }, d.name + ', ' + d.age), h('div', { class: 'hd' }, d.handle)),
       h('div', { class: 'close', onclick: () => { app.statsOpen = null; app.peek = null; rerender(); } }, '×')),
     rows,
@@ -235,7 +245,7 @@ function renderBoard() {
   const chips = g.roster.map(id => {
     const chip = h('div', { class: 'sister-chip' + (placed(id) ? ' assigned' : '') + (app.armed === id ? ' armed' : ''), draggable: !placed(id), onclick: () => {
       if (placed(id)) { R.unassign(g, id); renderBoard(); return; }
-      app.armed = app.armed === id ? null : id; app.statsOpen = (app.statsOpen === id && !app.armed) ? null : id; renderBoard();
+      app.armed = app.armed === id ? null : id; app.statsOpen = (app.statsOpen === id && !app.armed) ? null : id; if (app.statsOpen) focusOn('#stats-' + id); renderBoard();
     } }, avatar(CH[id].name), h('div', { class: 'nm' }, CH[id].name), h('div', { class: 'hd' }, CH[id].handle));
     chip.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; app.armed = id; });
     return chip;
@@ -306,9 +316,9 @@ function postNode(card) {
   if (card.gradeLine) body.push(h('p', { class: 'post-duty' }, card.gradeLine));
   // The president’s note on the report: the only ground truth on an event, and she cannot see it.
   const note = ev ? h('div', { class: 'pres-comment' }, h('div', { class: 'pc-head' }, h('div', { class: 'pc-avatar' }, 'ΩΤΚ'), h('div', { class: 'pc-who' }, 'president ', h('span', {}, '@president')), h('div', { class: 'pc-private' }, 'not visible to ' + d.handle)), h('div', { class: 'pc-body' }, ev.truth)) : null;
-  const action = card.done ? h('button', { class: 'dm-btn sent' }, '✓ sent') : h('button', { class: 'dm-btn' + (open ? ' open' : ''), onclick: () => { app.openComposer = open ? null : id; renderEvening(); } }, 'direct message');
+  const action = card.done ? h('button', { class: 'dm-btn sent' }, '✓ sent') : h('button', { class: 'dm-btn' + (open ? ' open' : ''), onclick: () => { app.openComposer = open ? null : id; if (!open) focusOn('#post-' + id); renderEvening(); } }, 'direct message');
   return h('div', { class: 'post' + (open ? ' active' : '') + (card.done ? ' done' : ''), id: 'post-' + id },
-    h('div', { class: 'post-head' }, h('div', { onclick: () => { app.peek = app.peek === id ? null : id; renderEvening(); } }, avatar(d.name)), h('div', { class: 'who' }, h('div', { class: 'name' }, d.name), h('div', { class: 'handle' }, d.handle)),
+    h('div', { class: 'post-head' }, h('div', { onclick: () => { app.peek = app.peek === id ? null : id; if (app.peek) focusOn('#stats-' + id); renderEvening(); } }, avatar(d.name)), h('div', { class: 'who' }, h('div', { class: 'name' }, d.name), h('div', { class: 'handle' }, d.handle)),
       h('div', { class: 'timestamp' + (card.late ? ' late' : '') }, card.time)),
     body, note, h('div', { class: 'post-actions' }, action),
     app.peek === id ? statsPanel(id) : null,
@@ -331,16 +341,10 @@ const implPhrase = { hand: 'hand', hairbrush: 'hairbrush', pingpong: 'ping-pong 
 const IMPL = Object.fromEntries(SC.IMPLEMENTS.map(([id, label, blurb]) => [id, { label, blurb }]));
 const POS = Object.fromEntries(SC.POSITIONS.map(([id, label, blurb]) => [id, { label, blurb }]));
 function draftOf(card) { return app.drafts[card.id] || (app.drafts[card.id] = { position: POS_DEFAULT, implement: IMPL_DEFAULT, clothing: CLOTHES_DEFAULT, severity: null, length: null, reprieve: null, reprieveLine: null }); }
+// What she is sent: the opener, how to arrive (the clothing), the closer. Position, implement, severity and length are not in it: they only set where the scene begins.
 function messageText(card, d) {
   if (d.reprieve) return d.reprieveLine;
-  const parts = [card.opener, C.CHANGE_CLAUSE];
-  if (d.position !== POS_DEFAULT) parts.push(C.POSITION_CLAUSE[d.position]);
-  if (C.IMPLEMENT_CLAUSE[d.implement]) parts.push(C.IMPLEMENT_CLAUSE[d.implement]);
-  if (C.CLOTHING[d.clothing].clause) parts.push(C.CLOTHING[d.clothing].clause);
-  if (d.severity) parts.push(C.SEVERITY[d.severity].clause);
-  if (d.length) parts.push(C.LENGTH[d.length].clause);
-  parts.push(card.closer);
-  return parts.join(' ');
+  return [card.opener, C.CLOTHING[d.clothing].clause, card.closer].join(' ');
 }
 function composer(card) {
   const g = app.g, id = card.id, d = draftOf(card);
@@ -355,7 +359,7 @@ function composer(card) {
   const words = group('Or offer a word instead (replaces the correction)', Object.entries(C.REPRIEVES).map(([k, r]) => chip(r.name, { cls: 'reprieve', selected: d.reprieve === k, disabled: g.candle < r.cost, title: r.blurb, extra: costIcons(r.cost),
     onclick: () => { if (d.reprieve === k) { d.reprieve = null; d.reprieveLine = null; } else { d.reprieve = k; d.reprieveLine = tell(pick(C.REPRIEVE_LINES[k]), id); } renderEvening(); } })));
   const preview = d.reprieve ? h('div', { class: 'draft-preview' }, h('span', { class: 'reprieve-tag' }, 'Reprieve — ' + C.REPRIEVES[d.reprieve].name), d.reprieveLine) : h('div', { class: 'draft-preview' }, messageText(card, d));
-  const note = d.reprieve ? C.REPRIEVES[d.reprieve].blurb : (d.severity || d.length ? 'Where it begins: ' + [d.severity && C.SEVERITY[d.severity].label, d.length && C.LENGTH[d.length].label].filter(Boolean).join(', ') + '. Everything stays yours to change in the room.' : 'No modifiers: the change-clause alone stands. Everything is yours to decide in the room.');
+  const note = d.reprieve ? C.REPRIEVES[d.reprieve].blurb : 'She is told only how to arrive. Position, implement, severity and length are where the scene begins; all of it is yours to change in the room.';
   return h('div', { class: 'composer expanded' }, h('div', { class: 'composer-inner' },
     h('div', { class: 'composer-header' }, h('span', {}, 'New message'), h('span', { class: 'to' }, 'to ' + CH[id].handle)),
     preview, h('div', { class: 'card-groups' }, positions, impls, clothes, severity, length, words),
@@ -365,6 +369,7 @@ function composer(card) {
 // Send is the only commit.
 function sendMessage(card) {
   const g = app.g, id = card.id, d = draftOf(card), text = messageText(card, d);
+  app.restoreY = window.scrollY;   // (the evening is where you left it when you come back)
   if (d.reprieve) {
     const snap = R.applyReprieve(g, id, d.reprieve); if (!snap) return;
     R.recordSent(g, id, { message: text, kind: 'reprieve', reprieve: d.reprieve });
@@ -382,7 +387,7 @@ async function startCorrection(card, d) {
   const v = $('#veil'); v.replaceChildren(h('p', { class: 'ln' }, tell(pick(KNOCKS), id))); v.hidden = false; requestAnimationFrame(() => v.classList.add('on'));
   await delay(1700);
   try {
-    await startLive(card, { position: d.position, implement: d.implement, layers: { ...K.layers }, preset: { strength: S_ ? S_.strength : undefined, pace: L_ ? L_.pace : undefined, run: L_ ? L_.run : undefined } });
+    await startLive(card, { position: d.position, implement: d.implement, look: K.look, layers: { ...K.layers }, preset: { strength: S_ ? S_.strength : undefined, pace: L_ ? L_.pace : undefined, run: L_ ? L_.run : undefined } });
   } finally { v.classList.remove('on'); await delay(450); v.hidden = true; v.replaceChildren(); }
 }
 
@@ -408,7 +413,7 @@ async function playScenes(list) { for (const n of list) if (!n.played && (n.type
 async function playScene(notice) {
   notice.played = true;
   const S = window.Starlight, id = notice.id, d = CH[id], box = $('#scene');
-  teardownLive(); closeModal(); say(null, null); setScreen(h('div'));
+  teardownLive(); closeModal(); say(null, null); app.view = 'scene'; setScreen(h('div'));
   const stage = await ensureStage();
   let ch = null;
   await busy('', async () => {
@@ -459,21 +464,21 @@ function onKey(e) {
 }
 async function startLive(card, set) {
   const id = card.id, d = CH[id];
-  app.keepVeil = true;
+  app.keepVeil = true; app.view = 'live';
   try {
     await busy('Setting the room…', async () => {
       const stage = await ensureStage();
       app.openComposer = null;
       teardownLive();
       showStage(true); setScreen(h('div')); document.body.classList.add('live');   // the view takes the pointer (see css .live)
-      app.live = stage.begin({ giver: B.keeper(), subject: B.spec(id), subjectId: id, position: set.position, implement: set.implement, layers: { ...set.layers }, pain: { ...d.pain }, composure: app.g.chars[id].stats.com, stats: { ...app.g.chars[id].stats } });
+      app.live = stage.begin({ giver: B.keeper(), subject: B.spec(id, set.look), subjectId: id, position: set.position, implement: set.implement, layers: { ...set.layers }, pain: { ...d.pain }, composure: app.g.chars[id].stats.com, stats: { ...app.g.chars[id].stats } });
       app.live.preset(set.preset || {});
       stage.setCamera(app.camera || 'overview');
     });
   } finally { app.keepVeil = false; }
   const ses = app.live; SC.Sound.set(app.settings.sound);
   say(id, d.lines.open[Math.floor(app.rng() * d.lines.open.length)]);
-  ses.card = card; ses.talked = false; ses.talkChanges = [];
+  ses.card = card; ses.look = set.look; ses.talked = false; ses.talkChanges = [];
   buildLiveDock(ses, card);
   document.addEventListener('keydown', onKey);
   maybeTutorial(ses);
@@ -677,7 +682,7 @@ function finishLive(ses, card) {
   const done = ses.finish();
   const snap = R.applyCorrection(g, id, done);
   snap.changes = (ses.talkChanges || []).concat(snap.changes);
-  snap.layers = dress;   // (the state of dress the correction ended on, for the aftercare scenes)
+  snap.layers = dress; snap.look = ses.look;   // (the state of dress the correction ended on, and what she was wearing, for the aftercare scenes)
   document.removeEventListener('keydown', onKey);
   save();
   if (snap.word) {   // the safe word: no scorecard; whoever leaves is seen off, then back to the timeline
@@ -713,7 +718,7 @@ async function playAftercare(kind, snap, wrap, draw) {
   wrap.hidden = true; say(null, null);
   await busy('Setting the scene…', async () => {
     await delay(50);
-    app.stage.tableau(kind, { giver: B.keeper(), subject: B.spec(id), subjectId: id, layers: { ...(snap.layers || {}) } });
+    app.stage.tableau(kind, { giver: B.keeper(), subject: B.spec(id, snap.look), subjectId: id, layers: { ...(snap.layers || {}) } });
   });
   const mood = R.fetchMood(S_), pool = C.AFTER_SCENES[kind][mood] || C.AFTER_SCENES[kind].plain, raw = pool[Math.floor(app.rng() * pool.length)];
   const text = tell(raw, id), you = kind === 'held' || kind === 'warm';

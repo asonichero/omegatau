@@ -7,7 +7,7 @@
 const S = window.Starlight, B = window.OtkBodies, C = window.OtkContent, SC = window.OtkScene, Ed = window.OtkEdits;
 
 const builtIn = {};
-for (const id of C.ORDER) builtIn[id] = B.BODIES[id]();
+for (const id of C.ORDER) { builtIn[id] = B.BODIES[id](); builtIn[id + '-sleep'] = B.spec(id, 'sleep'); builtIn[id + '-sleep'].name = builtIn[id].name + ' (sleepwear)'; }   // (her sleepwear is B.SLEEP in js/bodies.js)
 for (const [k, v] of Object.entries(B.KEEPERS)) { const m = v.make(); m.name = v.name; builtIn['keeper-' + k] = m; }
 for (const k of Object.keys(S.PRESETS)) delete S.PRESETS[k];
 S.ORDER.length = 0;

@@ -110,6 +110,26 @@ const BODIES = {
   },
 };
 
+// Sleepwear: what each sister changes into when she is told to "change into something to sleep in" (and wears when she is bared). Each swaps the top and the
+// bottom for her own; she comes barefoot. (The engine keys the garments 'top' and 'bottom', so a sleepwear spec is the day spec with those two replaced.)
+const SLEEP = {
+  lila: { top: { kind: 'top', name: 'Faded band tee', color: 0x2a2a30, from: 'hip', sleeves: 0.45 }, bottom: { kind: 'bottom', name: 'Black cotton sleep shorts', color: 0x1e1e24, legLen: 0.52 } },
+  taylor: { top: { kind: 'top', name: 'Old rush-week tee', color: 0xe99aa8, from: 'hip', sleeves: 0.45 }, bottom: { kind: 'bottom', name: 'Blue plaid pyjama trousers', color: 0x5d7fb0, legLen: 2.0, lowerTo: 'ankle' } },
+  hannah: { top: { kind: 'top', name: 'Lilac pyjama top', color: 0xb9a9d6, from: 'hip', sleeves: 2, neck: 'v', collar: true, placket: true, buttons: 0xf1ecf7 }, bottom: { kind: 'bottom', name: 'Lilac pyjama trousers', color: 0xb9a9d6, legLen: 2.0, lowerTo: 'ankle' } },
+  jess: { top: { kind: 'top', name: 'Yellow cami', color: 0xf0c64a, from: 'waist', sleeves: 0 }, bottom: { kind: 'bottom', name: 'Banana-print sleep shorts', color: 0xf6e7a3, legLen: 0.52 } },
+  marcy: { top: { kind: 'top', name: 'Faded grey tank', color: 0x7d808a, from: 'hip', sleeves: 0 }, bottom: { kind: 'bottom', name: 'Green flannel pyjama trousers', color: 0x3f5a48, legLen: 2.0, lowerTo: 'ankle' } },
+  sloane: { top: { kind: 'top', name: 'Navy satin pyjama top', color: 0x1f2f55, from: 'hip', sleeves: 0.45, neck: 'v', collar: true, placket: true, buttons: 0xd9bf9a }, bottom: { kind: 'bottom', name: 'Navy satin sleep shorts', color: 0x1f2f55, legLen: 0.52 } },
+};
+// A sister's spec; look 'sleep' is her in her sleepwear (anything else is her day clothes).
+function spec(id, look) {
+  const m = BODIES[id]();
+  if (look === 'sleep' && SLEEP[id]) {
+    A(m.wardrobe, SLEEP[id]); delete m.wardrobe.shoes; delete m.wardrobe.skirt;
+    m.looks = everyday(['bra', 'briefs', 'bottom', 'top']); m.look = 'Everyday';
+  }
+  return m;
+}
+
 // The player: Avery, the Big. There is nothing to choose: she is the one with the hands. The book says nothing of how she looks except that her eyes are
 // curious and unreadable, so the face is the engine's watchful composure (level brows, a held gaze), and the rest is plain: a wine-coloured knit and dark jeans,
 // her hair tied back low and neat. The name is the one thing the player can change (it is only a name).
@@ -133,5 +153,5 @@ const KEEPERS = {
   } },
 };
 
-root.OtkBodies = { BODIES, KEEPERS, spec: id => BODIES[id](), keeper: () => KEEPERS.a.make() };
+root.OtkBodies = { BODIES, SLEEP, KEEPERS, spec, keeper: () => KEEPERS.a.make() };
 })(window);

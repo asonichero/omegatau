@@ -363,8 +363,9 @@ const COVER_POSTS = [
 ];
 
 // ── The message (the direct-message composer) ────────────────────
-// A message runs: opener, the change-clause, position, implement, clothing, severity, length, closer. `strength` and `pace` / `run` are the
-// indices the live correction starts at (see scene.js STRENGTH, PACE and RUN); every one of them is changeable once she is in the room.
+// What the sister is sent says how she is to arrive (the clothing) and nothing about the correction itself: position, implement, severity and length only decide
+// where the scene begins (`strength` and `pace` / `run` are indices into scene.js STRENGTH, PACE and RUN), and every one of them is changeable once she is in the room.
+// `look`: what she is wearing when she comes (bodies.js: 'day' or 'sleep'); `layers`: lowered? { bottoms, briefs }.
 const TROUBLE_OPENERS = ['{Name}. I saw your post.', '{Name}, we need to talk about tonight.', '{Name} — come find me.'];
 const ROUTINE_OPENERS = [
   '{Name}. Nothing to report — Probation doesn’t care.',
@@ -379,39 +380,23 @@ const OWN_OPENERS = {
   marcy: { trouble: ['{Name}. I noticed. Come find me.'], routine: ['{Name}, nothing to report. I’m noticing you anyway.'] },
   sloane: { trouble: ['{Name}. This isn’t a negotiation. Come find me.'], routine: ['{Name} — nothing to report. Same rules. Same time.'] },
 };
-const CHANGE_CLAUSE = 'Change into something to sleep in.';
 const CLOSERS = ['My room. Ten minutes.', 'The study. Now.', 'Common room’s clear tonight. Come down.'];
-// What she is asked to do in the room (the position).
-const POSITION_CLAUSE = {
-  lap: 'You’ll be across my knee.',
-  case: 'You’ll be bent over the desk, palms flat.',
-  head: 'You’ll stand in the middle of the room with your hands on your head.',
-  chair: 'You’ll hold the seat of the chair and bend.',
-  spread: 'Feet apart, bent forward, hands on your thighs.',
-};
-const IMPLEMENT_CLAUSE = {
-  hand: null,
-  hairbrush: 'Bring the hairbrush from your desk.',
-  pingpong: 'Grab the ping-pong paddle off the rec room table on your way.',
-  ownpaddle: 'Bring your paddle down off the wall.',
-  housepaddle: 'The house paddle’s coming off the mantel for this one.',
-};
-// Clothing: the baseline (sleepwear, no clause) has the bottoms down and the briefs up; the others change that. Layers: down? → { bottoms, briefs } true = lowered.
 const CLOTHING = {
-  clothed: { label: 'Clothed', clause: 'Whatever you put on, it stays on tonight.', layers: { bottoms: false, briefs: false } },
-  baseline: { label: 'Sleepwear', clause: null, layers: { bottoms: true, briefs: false } },
-  bared: { label: 'Bared', clause: 'Panties or not, you’re getting it on the bare tonight.', layers: { bottoms: true, briefs: true } },
+  clothed: { label: 'Clothed', clause: 'Come as you are, and keep it on: whatever you’re wearing, it stays on tonight.', look: 'day', layers: { bottoms: false, briefs: false } },
+  baseline: { label: 'Sleepwear', clause: 'Change into something to sleep in.', look: 'sleep', layers: { bottoms: true, briefs: false } },
+  bared: { label: 'Bared', clause: 'Wear whatever you like. It won’t matter: you’re getting it on the bare tonight.', look: 'sleep', layers: { bottoms: true, briefs: true } },
 };
+// Where the scene begins: how hard, and how long (indices into STRENGTH, PACE and RUN).
 const SEVERITY = {
-  goeasy: { label: 'Go Easy', clause: 'Barely more than a warning, this time.', strength: 1 },
-  lighter: { label: 'Lighter Hand', clause: 'Nothing dramatic tonight.', strength: 2 },
-  firmer: { label: 'Firmer Hand', clause: 'This one’s going to land.', strength: 4 },
-  nomercy: { label: 'No Mercy', clause: 'No half-measures tonight.', strength: 5 },
+  goeasy: { label: 'Go Easy', strength: 1 },
+  lighter: { label: 'Lighter Hand', strength: 2 },
+  firmer: { label: 'Firmer Hand', strength: 4 },
+  nomercy: { label: 'No Mercy', strength: 5 },
 };
 const LENGTH = {
-  quick: { label: 'Quick', clause: 'In and out. Don’t dawdle.', pace: 4, run: 1 },
-  drawn: { label: 'Drawn Out', clause: 'Take your time getting here. This isn’t a quick one.', pace: 1, run: 3 },
-  held: { label: 'Held Til It Lands', clause: 'We’re not stopping til it’s sunk in.', pace: 1, run: 4 },
+  quick: { label: 'Quick', pace: 4, run: 1 },
+  drawn: { label: 'Drawn Out', pace: 1, run: 3 },
+  held: { label: 'Held Til It Lands', pace: 1, run: 4 },
 };
 // What follows the correction (aftercare), as the message the Big sends once it is decided.
 const AFTER_CLAUSE = {
@@ -778,7 +763,7 @@ const EPILOGUE = {
 };
 
 root.OtkContent = { SCENES, STATS, STAT_NAMES, STAT_HINTS, CHARACTERS, ORDER, FIRST_THREE, CHORES, CHORE_STAT_NOTE, DUTY_LINES, ALONE_LINES, EVENTS, CATEGORIES,
-  GRADE_LINES, GRADE_FALSE, COVER_POSTS, TROUBLE_OPENERS, ROUTINE_OPENERS, OWN_OPENERS, CHANGE_CLAUSE, CLOSERS, POSITION_CLAUSE, IMPLEMENT_CLAUSE, CLOTHING, SEVERITY, LENGTH,
+  GRADE_LINES, GRADE_FALSE, COVER_POSTS, TROUBLE_OPENERS, ROUTINE_OPENERS, OWN_OPENERS, CLOSERS, CLOTHING, SEVERITY, LENGTH,
   AFTER_CLAUSE, REPRIEVE_LINES, REPRIEVES, AFTERCARE, PRES_FEEDBACK, GREETINGS, PINNED_POST, MEMO, SAYINGS, RESULT_LINES, CHANGE, REOPEN, AFTER_SCENES, AFTER_NARR, EPILOGUE };
 if (typeof module !== 'undefined' && module.exports) module.exports = root.OtkContent;
 })(typeof window !== 'undefined' ? window : globalThis);

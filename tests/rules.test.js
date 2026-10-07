@@ -493,17 +493,19 @@ test('every line the scene-change interlude and the aftercare scenes can show fi
   for (const t of strings) assert.doesNotMatch(R.fillTemplate(t, ctx), /\{\w+\}/, t);
 });
 
-test('the message: openers, clauses and reprieve lines are all there, and the composer’s starting points are valid indices', () => {
+test('the message says how to arrive and nothing about the correction; the composer’s starting points are valid indices', () => {
   for (const id of C.ORDER) for (const k of ['trouble', 'routine']) assert.ok(C.OWN_OPENERS[id][k].length >= 1, id + k);
   for (const t of [...C.TROUBLE_OPENERS, ...C.ROUTINE_OPENERS, ...Object.values(C.OWN_OPENERS).flatMap(o => [...o.trouble, ...o.routine])]) assert.ok(t.includes('{Name}'), t);
-  assert.deepEqual(Object.keys(C.IMPLEMENT_CLAUSE), ['hand', 'hairbrush', 'pingpong', 'ownpaddle', 'housepaddle']);
-  assert.equal(C.CHANGE_CLAUSE, 'Change into something to sleep in.');
   assert.equal(C.CLOSERS.length, 3);
   for (const k of Object.keys(C.REPRIEVES)) assert.ok(C.REPRIEVE_LINES[k].length >= 3, k);
   for (const k of Object.keys(C.AFTERCARE)) assert.ok(C.AFTER_CLAUSE[k], k);
-  for (const v of Object.values(C.SEVERITY)) assert.ok(v.strength >= 0 && v.strength <= 5 && v.clause);
-  for (const v of Object.values(C.LENGTH)) assert.ok(v.pace >= 0 && v.pace <= 7 && v.run >= 0 && v.run <= 6 && v.clause);
-  assert.equal(C.CLOTHING.clothed.layers.bottoms, false); assert.equal(C.CLOTHING.bared.layers.briefs, true); assert.equal(C.CLOTHING.baseline.clause, null);
+  for (const v of Object.values(C.SEVERITY)) { assert.ok(v.strength >= 0 && v.strength <= 5); assert.ok(!v.clause); }
+  for (const v of Object.values(C.LENGTH)) { assert.ok(v.pace >= 0 && v.pace <= 7 && v.run >= 0 && v.run <= 6); assert.ok(!v.clause); }
+  assert.equal(C.POSITION_CLAUSE, undefined); assert.equal(C.IMPLEMENT_CLAUSE, undefined);
+  // clothed and sleepwear tell her how to arrive; bared says it will not matter; every one of them has a clause
+  assert.match(C.CLOTHING.clothed.clause, /keep it on/); assert.match(C.CLOTHING.baseline.clause, /sleep in/); assert.match(C.CLOTHING.bared.clause, /won’t matter/);
+  assert.equal(C.CLOTHING.clothed.look, 'day'); assert.equal(C.CLOTHING.baseline.look, 'sleep'); assert.equal(C.CLOTHING.bared.look, 'sleep');
+  assert.equal(C.CLOTHING.clothed.layers.bottoms, false); assert.equal(C.CLOTHING.bared.layers.briefs, true);
 });
 
 test('the last page: every sister has a grown and a lost epilogue, and her last stats are kept when she goes', () => {

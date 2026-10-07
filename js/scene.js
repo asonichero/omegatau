@@ -21,15 +21,64 @@ const ENGINE_POSITION = { lap: 'lap', astride: 'lap', hips: 'case', case: 'case'
 const IMPLEMENTS = [
   ['hand', 'Hand', 'Nothing to fetch. Stings, and fades quickly.'],
   ['hairbrush', 'The hairbrush', 'From her desk. Light and sharp; a dull ache follows.'],
-  ['pingpong', 'The ping-pong paddle', 'Off the rec room table. Light and quick: more sting than ache.'],
-  ['ownpaddle', 'Her own paddle', 'Down off the wall, and hers. Broad and heavy: both sides at once, a deep ache.'],
-  ['housepaddle', 'The house paddle', 'Off the mantel. The heaviest in the house, and everyone knows it.'],
+  ['pingpong', 'The ping-pong paddle', 'Off the rec room table: thin red rubber on a small blade. More sting than the hairbrush, and a lot less thud.'],
+  ['ownpaddle', 'Her own paddle', 'Down off her wall: ply, painted her own way. Thuddier than the hairbrush or the ping-pong paddle, and the varnish makes it sting.'],
+  ['housepaddle', 'The house paddle', 'Off the mantel: oak, and thick. It packs a punch.'],
 ];
-// Each implement in the room is one the engine has: the three paddles are the engine's paddle, a lighter one and a heavier one (and the strength each lands with). The
-// engine's own names (the editor uses them: 'paddle', 'rod') pass through unchanged.
-const IMPL = { hand: ['hand', 1], hairbrush: ['hairbrush', 1], pingpong: ['paddle', 0.62], ownpaddle: ['paddle', 1], housepaddle: ['paddle', 1.3] };
-const engineImpl = n => (IMPL[n] || [n, 1])[0], implFactor = n => (IMPL[n] || [n, 1])[1];
-// Bottoms and briefs are down or up; a skirt is down (it drapes, and is simulated), hitched up at the back, or off.
+// Each implement in the room is one the engine has: the three paddles are the engine's paddle, reshaped (PADDLE_DIMS), dressed (dressPaddle) and given their own pain
+// (PAIN_FEEL) so they feel as described. The engine's own names (the editor uses them: 'paddle', 'rod') pass through unchanged.
+const ENGINE = { hand: 'hand', hairbrush: 'hairbrush', pingpong: 'paddle', ownpaddle: 'paddle', housepaddle: 'paddle' };
+const engineImpl = n => ENGINE[n] || n;
+const PADDLE_BASE = { ...S.PADDLE };
+const PADDLE_DIMS = {
+  pingpong: { len: 0.2, width: 0.15, thick: 0.008, corner: 0.07, neck: 0.03, handle: 0.1, handleW: 0.024 },
+  ownpaddle: { thick: 0.013 },
+  housepaddle: { len: 0.3, width: 0.14, thick: 0.028, corner: 0.025, handle: 0.12, handleW: 0.03 },
+};
+// base: the pain of a full-strength smack; sting: the share of it that is sharp and fades fast (the rest is the deep ache that lingers).
+// Ping-pong: more sting than the hairbrush, much less thud. Her own: a deeper thud than either, sharpened by the varnish. The house paddle: all weight.
+const PAIN_FEEL = { pingpong: { base: 1.25, sting: 0.82 }, ownpaddle: { base: 1.7, sting: 0.5 }, housepaddle: { base: 2.4, sting: 0.28 } };
+for (const [k, v] of Object.entries(PAIN_FEEL)) S.PAIN.implement[k] = v;
+
+// ── The paddles' looks ──────────────────────────────────────────
+// The board's faces are textured from the blade's own outline: u runs the length of the whole board (butt to tip) and v across it.
+const canvasOf = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding; t.anisotropy = 4; return t; };
+function grain(ctx, x0, y0, w, h, base, dark, n, seed) {
+  let a = seed >>> 0; const r = () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  ctx.fillStyle = base; ctx.fillRect(x0, y0, w, h);
+  for (let i = 0; i < n; i++) { ctx.strokeStyle = dark; ctx.globalAlpha = 0.1 + r() * 0.2; ctx.lineWidth = 0.6 + r() * 1.4; const y = y0 + r() * h; ctx.beginPath(); ctx.moveTo(x0, y); ctx.bezierCurveTo(x0 + w * 0.3, y + (r() - 0.5) * 6, x0 + w * 0.6, y + (r() - 0.5) * 6, x0 + w, y + (r() - 0.5) * 4); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+}
+const star = (ctx, x, y, R, col) => { ctx.fillStyle = col; ctx.beginPath(); for (let i = 0; i < 10; i++) { const rr = i % 2 ? R * 0.45 : R, an = -Math.PI / 2 + i * Math.PI / 5; ctx.lineTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr); } ctx.closePath(); ctx.fill(); };
+// Her own paddle: ply, varnished, and decorated her way. `f` is where the blade starts (a share of the length); the handle is bare ply.
+const OWN = {
+  lila: (ctx, w, h, f) => { const cx = w * (f + (1 - f) * 0.45), cy = h * 0.5; ctx.fillStyle = '#17141c'; ctx.beginPath(); ctx.arc(cx, cy, h * 0.3, 0, 6.3); ctx.fill(); ctx.fillStyle = '#c99d62'; ctx.beginPath(); ctx.arc(cx + h * 0.12, cy - h * 0.04, h * 0.27, 0, 6.3); ctx.fill();
+    star(ctx, cx + h * 0.42, cy - h * 0.2, h * 0.07, '#17141c'); star(ctx, cx + h * 0.5, cy + h * 0.16, h * 0.05, '#17141c'); star(ctx, cx + h * 0.3, cy + h * 0.3, h * 0.04, '#17141c'); },
+  taylor: (ctx, w, h, f) => { const x0 = w * f; const cols = ['#ef5a8a', '#4fb5d9', '#f4c430', '#7cc576', '#ff8a3d']; for (let i = 0; i < 9; i++) { const x = x0 + (w - x0) * (0.12 + (i % 3) * 0.3) + (i % 2) * 8, y = h * (0.2 + Math.floor(i / 3) * 0.3); ctx.fillStyle = cols[i % 5]; ctx.beginPath(); ctx.arc(x, y, h * 0.1, 0, 6.3); ctx.fill(); ctx.fillStyle = '#241b1d'; ctx.fillRect(x - 6, y - 4, 3, 3); ctx.fillRect(x + 4, y - 4, 3, 3); ctx.fillRect(x - 5, y + 4, 11, 2); }
+    ctx.fillStyle = '#ef5a8a'; ctx.fillRect(x0 + 8, h * 0.9, (w - x0) * 0.9, 6); },
+  hannah: (ctx, w, h, f) => { const x0 = w * f; for (const [fx, fy, s] of [[0.25, 0.3, 1], [0.6, 0.62, 1.25], [0.82, 0.28, 0.8], [0.4, 0.78, 0.7]]) { const x = x0 + (w - x0) * fx, y = h * fy, R = h * 0.08 * s;
+      ctx.fillStyle = '#f7f1ea'; for (let i = 0; i < 6; i++) { const an = i * Math.PI / 3; ctx.beginPath(); ctx.ellipse(x + Math.cos(an) * R * 1.3, y + Math.sin(an) * R * 1.3, R, R * 0.55, an, 0, 6.3); ctx.fill(); } ctx.fillStyle = '#e3b23c'; ctx.beginPath(); ctx.arc(x, y, R * 0.7, 0, 6.3); ctx.fill(); } },
+  jess: (ctx, w, h, f) => { const x0 = w * f; ctx.fillStyle = '#ffd400'; ctx.beginPath(); const bx = x0 + (w - x0) * 0.2, by = h * 0.1; [[0, 0], [0.22, 0], [0.12, 0.38], [0.28, 0.38], [0.05, 0.85], [0.1, 0.5], [-0.05, 0.5]].forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](bx + x * (w - x0), by + y * h * 0.9)); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ff5fa2'; ctx.fillRect(x0 + (w - x0) * 0.55, h * 0.18, (w - x0) * 0.4, 8); ctx.fillStyle = '#3dc7d6'; ctx.fillRect(x0 + (w - x0) * 0.55, h * 0.26, (w - x0) * 0.4, 8);
+    ctx.fillStyle = '#241b1d'; ctx.font = '700 ' + Math.round(h * 0.2) + 'px Georgia, serif'; ctx.textAlign = 'left'; ctx.fillText('JESS', x0 + (w - x0) * 0.5, h * 0.72); },
+  marcy: (ctx, w, h, f) => { const x0 = w * f; ctx.fillStyle = '#3b3b44'; ctx.font = 'italic 500 ' + Math.round(h * 0.2) + 'px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('behave.', x0 + (w - x0) / 2, h * 0.56); ctx.fillRect(x0 + (w - x0) * 0.28, h * 0.64, (w - x0) * 0.44, 3); },
+  sloane: (ctx, w, h, f) => { const x0 = w * f; ctx.fillStyle = '#1f2f55'; ctx.fillRect(x0, h * 0.4, w - x0, h * 0.2); ctx.fillStyle = '#c9a44a'; ctx.fillRect(x0, h * 0.37, w - x0, 4); ctx.fillRect(x0, h * 0.6, w - x0, 4); const cx = x0 + (w - x0) * 0.5; ctx.beginPath(); ctx.arc(cx, h * 0.5, h * 0.2, 0, 6.3); ctx.fillStyle = '#c9a44a'; ctx.fill(); ctx.fillStyle = '#1f2f55'; ctx.font = '700 ' + Math.round(h * 0.26) + 'px Georgia, serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('S', cx, h * 0.52); },
+};
+function paddleMaterial(kind, subjectId, f) {
+  if (kind === 'pingpong') return new T.MeshStandardMaterial({ map: canvasOf(512, 256, (ctx, w, h) => { grain(ctx, 0, 0, w * f, h, '#d7b27a', '#a8844f', 30, 5); ctx.fillStyle = '#b0242b'; ctx.fillRect(w * f, 0, w * (1 - f), h); for (let i = 0; i < 700; i++) { ctx.fillStyle = 'rgba(0,0,0,' + (0.04 + Math.random() * 0.06) + ')'; ctx.fillRect(w * f + Math.random() * w * (1 - f), Math.random() * h, 2, 2); } ctx.fillStyle = '#1a1a1a'; ctx.fillRect(w * f, 0, w * (1 - f), 5); ctx.fillRect(w * f, h - 5, w * (1 - f), 5); }), roughness: 0.75, metalness: 0 });
+  if (kind === 'housepaddle') return new T.MeshStandardMaterial({ map: canvasOf(512, 256, (ctx, w, h) => { grain(ctx, 0, 0, w, h, '#9b6a38', '#5a3a1c', 70, 11); ctx.fillStyle = 'rgba(60,32,14,.85)'; ctx.font = '700 ' + Math.round(h * 0.3) + 'px Georgia, serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('ΩΤΚ', w * (f + (1 - f) * 0.5), h * 0.5); }), roughness: 0.55, metalness: 0 });
+  const draw = OWN[subjectId];
+  return new T.MeshPhysicalMaterial({ map: canvasOf(512, 256, (ctx, w, h) => { grain(ctx, 0, 0, w, h, '#cfa86e', '#9a7440', 26, 3); ctx.fillStyle = 'rgba(120,84,44,.5)'; ctx.fillRect(0, 0, w, 5); ctx.fillRect(0, h - 5, w, 5); if (draw) draw(ctx, w, h, f); }), roughness: 0.3, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06 });
+}
+// Dresses the board the engine has built: its UVs run butt to tip, and its material is the paddle's own.
+function dressPaddle(scn, kind, subjectId) {
+  const tool = scn.tool && scn.tool.grp, board = tool && tool.children[0]; if (!board || !board.geometry) return;
+  const geo = board.geometry, P = S.PADDLE; geo.computeBoundingBox(); const bb = geo.boundingBox, L = bb.max.x - bb.min.x, W = bb.max.y - bb.min.y, pos = geo.attributes.position, uv = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) { uv[i * 2] = (pos.getX(i) - bb.min.x) / L; uv[i * 2 + 1] = (pos.getY(i) - bb.min.y) / W; }
+  geo.setAttribute('uv', new T.BufferAttribute(uv, 2));
+  const f = Math.max(0.05, Math.min(0.7, 1 - P.len / L));
+  board.material = paddleMaterial(kind, subjectId, f);
+}// Bottoms and briefs are down or up; a skirt is down (it drapes, and is simulated), hitched up at the back, or off.
 const SKIRT_MODES = ['down', 'up', 'off'];
 const skirtMode = v => v === true ? 'down' : !v ? 'off' : SKIRT_MODES.includes(v) ? v : 'down';
 const LAYER_LABELS = { skirt: { down: 'Skirt down', up: 'Skirt hitched up', off: 'Skirt off' }, bottoms: ['Bottoms down', 'Bottoms up'], briefs: ['Briefs down', 'Briefs up'] };
@@ -409,7 +458,7 @@ function createSession(scene, opts, env = {}) {
       layers: { bottoms: false, briefs: false, ...(opts.layers || {}), skirt: (opts.layers && opts.layers.skirt) || 'up' }   /* a skirt is always hitched up for a correction (the editor may ask for another) */, implement: opts.implement || 'hand', position: opts.position || 'case' };
     let g = null, s = null, scn = null, furniture = null, plant = null, pins = null, lookAhead = null, fixedPins = false;
 
-    const derive = () => { const pace = PACE[st.paceIdx], m = STRENGTH[st.strengthIdx]; return { speed: pace, strength: Math.min(1.3, 0.66 * m * implFactor(st.implement)), hold: 0.3 / pace, dwell: 0.6 / pace, face: clamp(0.1 + 0.45 * m * pace, 0.1, 1) }; };
+    const derive = () => { const pace = PACE[st.paceIdx], m = STRENGTH[st.strengthIdx]; return { speed: pace, strength: Math.min(1, 0.66 * m), hold: 0.3 / pace, dwell: 0.6 / pace, face: clamp(0.1 + 0.45 * m * pace, 0.1, 1) }; };
 
     function teardown() {
       if (!scn) return;
@@ -454,6 +503,13 @@ function createSession(scene, opts, env = {}) {
       // (1 is the engine's own kick; a free kick is well past it: knees well up, the heels high)
       scn.legK = Math.random() < freq ? Math.min(1.8, gain * 1.8 * (0.85 + 0.3 * Math.random())) : gain * 0.3;
     }
+    // The implement in her hand: the engine's, reshaped and dressed if it is one of the three paddles, and (for those) felt as it should be: the pain model is told which it is.
+    function equip(n) {
+      Object.assign(S.PADDLE, PADDLE_BASE, PADDLE_DIMS[n] || {});
+      scn.setImplement(engineImpl(n));
+      if (PAIN_FEEL[n]) dressPaddle(scn, n, opts.subjectId);
+      if (scn.pain && !scn.pain.feelWrapped) { const real = scn.pain.hit; scn.pain.feelWrapped = true; scn.pain.hit = info => real({ ...info, implement: PAIN_FEEL[st.implement] ? st.implement : info.implement }); }
+    }
     function make(cfg = {}) {
       const position = cfg.position || st.position;
       const oldP = scn && scn.pain;
@@ -473,7 +529,7 @@ function createSession(scene, opts, env = {}) {
       applyLayers();
       let impl = cfg.implement || st.implement;
       if (position === 'spread' && !S.IMPLEMENTS[engineImpl(impl)].dual) impl = 'ownpaddle';
-      st.implement = impl; scn.setImplement(engineImpl(impl)); scn.setBeat('relaxed');
+      st.implement = impl; equip(impl); scn.setBeat('relaxed');
       scn.timing = { ...scn.timing, speed: D.speed };
       scn.noMarks = position === 'hips';   // the Hips base position takes no colour from a smack, and gives none back
       furniture = null; plant = furnishDiscipline(scene, scn, g, s, position, seatTop);   // furniture, the seat, the pose edits (shared with the editor)
@@ -504,7 +560,7 @@ function createSession(scene, opts, env = {}) {
         applyLayers(true);
       },
       // A live change of implement (to or from the hand). Anything else is fetched: see rebuild.
-      setImplement(n) { if (st.position === 'spread' && !S.IMPLEMENTS[engineImpl(n)].dual) return false; st.implement = n; scn.setImplement(engineImpl(n)); scn.setBeat('relaxed'); return true; },
+      setImplement(n) { if (st.position === 'spread' && !S.IMPLEMENTS[engineImpl(n)].dual) return false; st.implement = n; equip(n); scn.setBeat('relaxed'); return true; },
       // Builds the room and bodies again (a new position, or a new implement that has been fetched), keeping the pain and the marks.
       rebuild(cfg) { make(cfg); },
       // Composure held still (nothing fades, nothing builds) from here until the first smack or run begins again.
@@ -917,5 +973,5 @@ function createStage(viewEl, { onGLProblem } = {}) {
   return { begin, tableau, end, loop, clearMarks, setCamera, onCameraTaken: fn => { api_onCam = fn; }, get cameraMode() { return cam.mode; }, renderer, camera, controls, scene, get session() { return session; }, resize };
 }
 
-root.OtkScene = { engineImpl, implFactor, TABLEAUX: [['corner', 'Corner time'], ['lines', 'Lines'], ['held', 'Held after (standing)'], ['heldalt', 'Held after (alternate, seated)'], ['warm', 'Warm words']], cameraPose, layerLabel, layerNext, skirtMode, furnishScene, holdChairHands, chairSeatTop, applyPoseOverrides, prepareSubject, furnishDiscipline, createSession, createTableau, createStage, POSITIONS, IMPLEMENTS, CAMERAS, LAYER_LABELS, PACE, STRENGTH, RUN, Sound };
+root.OtkScene = { engineImpl, TABLEAUX: [['corner', 'Corner time'], ['lines', 'Lines'], ['held', 'Held after (standing)'], ['heldalt', 'Held after (alternate, seated)'], ['warm', 'Warm words']], cameraPose, layerLabel, layerNext, skirtMode, furnishScene, holdChairHands, chairSeatTop, applyPoseOverrides, prepareSubject, furnishDiscipline, createSession, createTableau, createStage, POSITIONS, IMPLEMENTS, CAMERAS, LAYER_LABELS, PACE, STRENGTH, RUN, Sound };
 })(window);
