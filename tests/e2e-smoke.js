@@ -125,9 +125,9 @@ async function liveControls(p) {
       await p.waitForSelector('.register');
     }
     const sent = await p.locator('.sent-msg').count(); if (sent < 1) throw new Error('sent messages stay on the timeline');
-    await p.click('button:has-text("Probation Report")'); await p.waitForSelector('.report-line'); if (day === 1) await shot(p, 'report', { fullPage: true });
-    if (await p.locator('.report-line').count() < 1) throw new Error('the report has a line per sister');
-    await p.click('.full-btn:text-is("Submit")');
+    await p.click('button:has-text("Probation Report")'); await p.waitForSelector('.dm-line'); if (day === 1) await shot(p, 'report', { fullPage: true });
+    if (await p.locator('.dm-line').count() !== 3) throw new Error('the report has a paragraph per sister'); const rt = await p.locator('.dm').innerText(); if (!/Dress:/.test(rt) || !/Afterwards|No aftercare|didn.t correct/.test(rt)) throw new Error('the report should say what was done: ' + rt);
+    await p.click('.full-btn:text-is("Send to @president")');
     await p.waitForSelector('.presresp, .overlay:not([hidden]), .standing', { timeout: 20000 });
     if (await p.locator('.overlay:not([hidden]) .primary').count()) { await p.click('.overlay .primary'); await p.waitForSelector('.presresp, .standing'); }
     if (await p.locator('.standing').count()) break;

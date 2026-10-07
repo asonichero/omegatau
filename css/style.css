@@ -192,6 +192,11 @@ footer { padding: 10px 20px; border-top: 1px solid var(--brass-line); font-size:
 .report, .presresp, .standing { padding: 20px 22px 14px; }
 .report h2, .presresp h2, .standing h2 { font-size: 19px; margin: 0 0 3px; }
 .report .sub, .presresp .sub, .standing .sub { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 16px; }
+/* the report: a direct message to the president */
+.dm { border: 1px solid var(--oxblood); border-radius: 12px; overflow: hidden; background: var(--paper); }
+.dm-head { background: var(--oxblood); color: var(--paper); padding: 10px 14px; font-size: 12px; font-weight: 700; display: flex; justify-content: space-between; gap: 8px; } .dm-head .to { font-weight: 400; opacity: .85; }
+.dm-body { padding: 14px 16px 16px; background: var(--oxblood-paper); font-family: var(--serif); font-size: 14px; line-height: 1.6; }
+.dm-body p { margin: 0 0 12px; } .dm-body .dm-intro { color: var(--ink-soft); font-style: italic; } .dm-body .dm-line { padding-top: 11px; border-top: 1px solid var(--brass-line); } .dm-body .dm-sign { margin: 4px 0 0; text-align: right; color: var(--ink-soft); }
 .report-line { padding: 12px 0; border-top: 1px solid var(--paper-dim); font-size: 13.5px; line-height: 1.6; } .report-line:first-of-type { border-top: 1px solid var(--brass-line); }
 .report-line .nm { font-weight: 700; } .report-line .detail { color: var(--ink-soft); }
 .report-line .sent-line { font-family: var(--serif); font-style: italic; color: var(--oxblood); margin-top: 4px; font-size: 13px; }

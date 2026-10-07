@@ -531,3 +531,26 @@ test('self-neglect costs Attention too, and slips her Grades; a boundary test co
   assert.equal(s.att, before.att - 1); assert.ok(s.com < before.com); assert.ok(s.sat < before.sat); assert.equal(g.chars.hannah.grades, 'At Risk');
   const j = g.chars.jess.stats.wil; R.applyEvent(g, { id: 'jess', cat: 'boundary' }); assert.equal(g.chars.jess.stats.wil, j + 1);
 });
+
+test('the Probation Report is a message from the Big, from what was actually done: positions, how bared, implements, how she took it, aftercare', () => {
+  const g = house(['lila', 'jess', 'taylor']); g.day = 3;
+  g.cards = [
+    { id: 'lila', band: 'partial', choreName: 'Dish Duty', event: { cat: 'boundary' }, late: true, done: true,
+      sent: { kind: 'correction', after: 'held', report: { look: 'sleep', mood: 'willing', band: 3, st: 2, runs: [{ pos: 'lap', impl: 'hairbrush', st: 1, n: 8 }, { pos: 'case', impl: 'hairbrush', st: 2, n: 4 }, { pos: 'case', impl: 'housepaddle', st: 2, n: 6 }] } } },
+    { id: 'jess', band: 'completed', choreName: 'Grocery Run', event: null, done: true, sent: { kind: 'correction', after: 'bed', report: { look: 'day', mood: 'cheeky', band: 0, st: 0, pos: 'lap', impl: 'hand', runs: [] } } },
+    { id: 'taylor', band: 'completed', choreName: 'Dues Reconciliation', event: { cat: 'dishonest' }, done: true, sent: { kind: 'reprieve', reprieve: 'kind', message: 'x' } },
+  ];
+  const rep = R.probationReport(g), [a, b, c] = rep.lines.map(l => l.text);
+  assert.match(rep.intro, /night 3|Night 3/); assert.equal(rep.outro, '— Avery'); assert.equal(rep.lines.length, 3);
+  assert.match(a, /^Lila — Dish Duty, partial; boundary-testing; posted late\./);
+  assert.match(a, /I started with her across my lap, then bent over the desk\./);                         // the positions, in order
+  assert.match(a, /Dress: bottoms down, briefs on, then fully bared\./);                                 // how far she was bared
+  assert.match(a, /Implements: the hairbrush \(12\) and the house paddle \(6\); 18 smacks in all\./);   // the implements, with counts
+  assert.match(a, /Lila was struggling by the end but stayed where she was put\. I brought her to Firm\./);   // how she took it
+  assert.match(a, /Afterwards I held her until it eased\./);   // the aftercare
+  assert.match(b, /I had her across my lap\. Dress: clothed, in her own clothes\. I didn’t strike her/); assert.match(b, /No aftercare: I sent her to bed\./);
+  assert.match(c, /^Taylor — Dues Reconciliation, completed; dishonesty \/ concealment\. I didn’t correct her\. I sat with her and gave her a kind word instead\.$/);
+  for (const t of [a, b, c]) assert.ok(!/\{\w+\}/.test(t), t);
+  // every how-she-took-it phrase exists for every mood and band
+  for (const m of Object.keys(C.REPORT.taken)) assert.equal(C.REPORT.taken[m].length, 6, m);
+});

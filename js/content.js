@@ -762,7 +762,27 @@ const EPILOGUE = {
   },
 };
 
-root.OtkContent = { SCENES, STATS, STAT_NAMES, STAT_HINTS, CHARACTERS, ORDER, FIRST_THREE, CHORES, CHORE_STAT_NOTE, DUTY_LINES, ALONE_LINES, EVENTS, CATEGORIES,
+// ── The Probation Report: the Big's direct message to the president, compiled from what was actually done ──
+// Positions, how far she was bared, the implements, how she took it, the aftercare. {Name} {Subj} {Poss} {Obj}.
+const REPORT = {
+  intro: ['Report for night {N}.', 'Night {N}, as logged.', 'Probation report, night {N}.'],
+  outro: '— {Title}',
+  position: { lap: 'across my lap', case: 'bent over the desk', head: 'standing with her hands on her head', chair: 'bent over, holding the chair', spread: 'bent forward with her feet apart' },
+  dress: ['clothed', 'bottoms down, briefs on', 'fully bared'],
+  implement: { hand: 'my hand', hairbrush: 'the hairbrush', pingpong: 'the ping-pong paddle', ownpaddle: 'her own paddle', housepaddle: 'the house paddle' },
+  // how she took it: by how she was (rules.js fetchMood) and how far I brought her (Minimal … Severe, then too harsh)
+  taken: {
+    willing:   ['barely felt it, and said so politely', 'took it steadily and kept still', 'flinched and held her position, listening the whole way', 'was struggling by the end but stayed where she was put', 'was right at the edge, shaking, and still did as she was told', 'was taken past what she could bear, and I stopped'],
+    sullen:    ['didn’t react at all, and made a point of it', 'took it with her jaw set and said nothing', 'went quiet, and her breathing gave her away', 'stopped pretending she was unaffected somewhere in the middle', 'was close to tears and furious about it', 'was taken further than she could take, and I stopped'],
+    cheeky:    ['kept up the commentary, unbothered', 'joked for the first few, then mostly stopped', 'ran out of jokes about halfway', 'stopped joking altogether and asked me not to go on', 'was past joking and pleading to be let up', 'was taken too far, and I stopped'],
+    flustered: ['was nervous more than anything and fumbled her apologies', 'apologised through most of it and found her feet', 'cried a little and kept trying to get it right', 'was overwhelmed and could hardly speak, but stayed', 'was at the end of what she could do and said so', 'was taken past what she could bear, and I stopped'],
+    plain:     ['took it without much reaction', 'took it quietly', 'felt it, and said she understood', 'was in a good deal of pain by the end, and held on', 'was at the edge of what she could take, and told me', 'was taken further than she could bear, and I stopped'],
+  },
+  after: { corner: 'Afterwards I stood her in the corner.', lines: 'Afterwards I had her write lines.', held: 'Afterwards I held her until it eased.', warm: 'Afterwards there was tea, and some kind words.', bed: 'No aftercare: I sent her to bed.' },
+  reprieve: { stern: 'I didn’t correct her. I gave her a stern word instead.', kind: 'I didn’t correct her. I sat with her and gave her a kind word instead.', reflection: 'I didn’t correct her. I asked her to write it out and send it to me.' },
+};
+
+root.OtkContent = { REPORT, SCENES, STATS, STAT_NAMES, STAT_HINTS, CHARACTERS, ORDER, FIRST_THREE, CHORES, CHORE_STAT_NOTE, DUTY_LINES, ALONE_LINES, EVENTS, CATEGORIES,
   GRADE_LINES, GRADE_FALSE, COVER_POSTS, TROUBLE_OPENERS, ROUTINE_OPENERS, OWN_OPENERS, CLOSERS, CLOTHING, SEVERITY, LENGTH,
   AFTER_CLAUSE, REPRIEVE_LINES, REPRIEVES, AFTERCARE, PRES_FEEDBACK, GREETINGS, PINNED_POST, MEMO, SAYINGS, RESULT_LINES, CHANGE, REOPEN, AFTER_SCENES, AFTER_NARR, EPILOGUE };
 if (typeof module !== 'undefined' && module.exports) module.exports = root.OtkContent;

@@ -494,6 +494,42 @@ function applyAftercare(g, id, kind) {
   return { id, kind, name: A.name, changes: rec, exits, line: fillTemplate(C.RESULT_LINES.aftercare[kind], { name: dd.name, pron: dd.pronouns, title: g.title }) };
 }
 
+// ── The Probation Report ────────────────────────────────────────
+// The Big's nightly direct message to the president, compiled from what was actually done (card.sent.report, kept when the correction ended, and what came after):
+// the positions used, how far she was bared, the implements, how she took it, the aftercare. A message of her own for a reprieve.
+const dressState = l => l && l.bottoms ? (l.briefs ? 2 : 1) : 0;
+function listWith(items) { return items.length < 2 ? items.join('') : items.length === 2 ? items.join(' and ') : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1]; }
+function reportParagraph(g, card) {
+  const id = card.id, d = CHARACTERS[id], R_ = C.REPORT, s = card.sent || {}, rep = s.report || {}, ctx = { name: d.name, pron: d.pronouns, title: g.title };
+  const bits = [];
+  if (card.choreName) bits.push(card.choreName + ', ' + (card.alone ? 'failed (alone)' : BAND_WORD[card.band]));
+  if (card.event) bits.push(CATEGORIES[card.event.cat].label.toLowerCase());
+  const lead = d.name + ' — ' + (bits.length ? bits.join('; ') : 'nothing logged') + (card.late ? '; posted late' : '') + '.';
+  if (s.kind === 'reprieve') return [lead, R_.reprieve[s.reprieve]].join(' ');
+  const runs = rep.runs || [], out = [lead];
+  const uniq = arr => arr.filter((x, i) => x !== arr[i - 1]);
+  // positions, in the order they were used (where she was struck; or where she was left, if I never struck her)
+  const pos = uniq(runs.map(r => r.pos)); if (!pos.length && rep.pos) pos.push(rep.pos);
+  if (pos.length) out.push(pos.length === 1 ? 'I had her ' + R_.position[pos[0]] + '.' : 'I started with her ' + R_.position[pos[0]] + ', then ' + pos.slice(1).map(p => R_.position[p]).join(', then ') + '.');
+  // how far she was bared
+  const states = uniq(runs.map(r => r.st)); if (!states.length) states.push(rep.st != null ? rep.st : 0);
+  const dress = states.map((st, i) => R_.dress[st] + (st === 0 && i === 0 ? (rep.look === 'sleep' ? ', in her sleepwear' : ', in her own clothes') : ''));
+  out.push('Dress: ' + dress.join(', then ') + '.');
+  // the implements, with how many each
+  const per = []; for (const r of runs) { const e = per.find(x => x.impl === r.impl); if (e) e.n += r.n; else per.push({ impl: r.impl, n: r.n }); }
+  const total = per.reduce((n, x) => n + x.n, 0);
+  out.push(total ? 'Implements: ' + listWith(per.map(x => R_.implement[x.impl] + ' (' + x.n + ')')) + '; ' + total + (total === 1 ? ' smack' : ' smacks') + ' in all.' : 'I didn’t strike her: I decided it wasn’t needed.');
+  // how she took it
+  if (total && rep.band != null) out.push(fillTemplate('{Name} ' + R_.taken[rep.mood || 'plain'][rep.band] + '. I brought her to ' + (rep.band > 4 ? 'too harsh' : BANDS[rep.band]) + '.', ctx));
+  if (s.after) out.push(R_.after[s.after]);
+  return out.join(' ');
+}
+// The whole message: one paragraph per sister, in the order they were sent.
+function probationReport(g, rng) {
+  const r = rng || mulberry32(g.day * 7919 + 13), lines = g.cards.filter(c => c.done && c.sent).map(c => ({ id: c.id, text: reportParagraph(g, c) }));
+  return { intro: fillTemplate(pick(r, C.REPORT.intro).replace('{N}', g.day), { title: g.title }), lines, outro: fillTemplate(C.REPORT.outro, { title: g.title }) };
+}
+
 // ── The president's response ────────────────────────────────────
 // One line per sister, keyed to how last night went (the match quality, or whether a reprieve was earned); a sister Cleared that night gets her own line.
 // A sister who left (the safe word) has no line: the state-change block says it.
@@ -615,7 +651,7 @@ const api = { mulberry32, pick, shuffle, weighted, clamp, HOUSE_SIZE, EVENING_CA
   newGame, effectiveAttention, gradeMod, GRADE_ORDER, nudgeGrades, changeStat, meetsGraduation, wordCalled, SAFE_WORD, safeWordsToLeave, isOver, score, sweepMoveOns, flushMoveOns, moveOn, useWord, backfill,
   generateChores, startMorning, clearPresident, assign, unassign, allAssigned, choreOf, choreBand, choreEffective, dutyEffective, applyChoreBand, resolveChores, resolveDay,
   occurrence, lateChance, concealChance, timeString, dutyPost, categoryWeights, fillTemplate, makeEvent, applyEvent, rollEvents, situationalModifier, disclosureBands, extraBands, buildCards,
-  wilfulnessBand, expectedBand, reachedBand, matchQuality, qualityKey, applyCorrection, applyReprieve, applyAftercare, recordSent, presidentLines, farewellScene, fetchMood, reopenLine, toneFor, fetchOptions, fetchReply, applyFetch, pendingCards, endEvening,
+  wilfulnessBand, expectedBand, reachedBand, matchQuality, qualityKey, reportParagraph, probationReport, dressState, applyCorrection, applyReprieve, applyAftercare, recordSent, presidentLines, farewellScene, fetchMood, reopenLine, toneFor, fetchOptions, fetchReply, applyFetch, pendingCards, endEvening,
   getRapport, addRapport };
 root.OtkRules = api;
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

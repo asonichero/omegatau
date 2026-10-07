@@ -479,6 +479,7 @@ async function startLive(card, set) {
   const ses = app.live; SC.Sound.set(app.settings.sound);
   say(id, d.lines.open[Math.floor(app.rng() * d.lines.open.length)]);
   ses.card = card; ses.look = set.look; ses.talked = false; ses.talkChanges = [];
+  ses.log = { runs: [] }; ses.onImpact = () => logHit(ses);   // (what was actually done, for the Probation Report)
   buildLiveDock(ses, card);
   document.addEventListener('keydown', onKey);
   maybeTutorial(ses);
@@ -520,6 +521,11 @@ function runTutorial(ses) {
   show();
 }
 
+// Every smack that lands is logged with where she was, how far she was bared and what she was struck with (consecutive ones together).
+function logHit(ses) {
+  const pos = ses.position, impl = ses.implement, st = R.dressState(ses.layers), last = ses.log.runs[ses.log.runs.length - 1];
+  if (last && last.pos === pos && last.impl === impl && last.st === st) last.n++; else ses.log.runs.push({ pos, impl, st, n: 1 });
+}
 function buildLiveDock(ses, card) {
   const id = card.id, d = CH[id], g = app.g;
   const expected = R.expectedBand(g.chars[id].stats, card), cuts = R.BAND_CUTS, SCALE = 1.5;
@@ -678,9 +684,10 @@ async function applyChanges(ses, want) {
 }
 function finishLive(ses, card) {
   const g = app.g, id = card.id;
-  const dress = { ...ses.layers };
+  const dress = { ...ses.layers }, mood = R.fetchMood(g.chars[id].stats);
   const done = ses.finish();
   const snap = R.applyCorrection(g, id, done);
+  R.recordSent(g, id, { report: { runs: ses.log ? ses.log.runs : [], pos: ses.position, impl: ses.implement, st: R.dressState(dress), look: ses.look, mood, band: done.tooHarsh ? 5 : R.reachedBand(done.peak || 0) } });
   snap.changes = (ses.talkChanges || []).concat(snap.changes);
   snap.layers = dress; snap.look = ses.look;   // (the state of dress the correction ended on, and what she was wearing, for the aftercare scenes)
   document.removeEventListener('keydown', onKey);
@@ -733,6 +740,7 @@ async function playAftercare(kind, snap, wrap, draw) {
 // Sent to Bed: the room fades to a few lines about how she goes, and then on, as Next does.
 async function sendToBed(snap, wrap) {
   const id = snap.id, mood = R.fetchMood(app.g.chars[id].stats), pool = C.AFTER_SCENES.bed[mood] || C.AFTER_SCENES.bed.plain;
+  R.recordSent(app.g, id, { after: 'bed' }); save();
   wrap.hidden = true; say(null, null);
   const v = $('#veil'); v.replaceChildren(h('p', { class: 'ln', style: 'animation-delay:.3s' }, fmt(tell(pool[Math.floor(app.rng() * pool.length)], id))), h('button', { class: 'primary', style: 'opacity:0;animation:lnIn .9s 1.6s forwards', onclick: async () => { v.classList.remove('on'); await delay(450); v.hidden = true; v.replaceChildren(); proceed(snap, wrap); } }, 'Next'));
   v.hidden = false; requestAnimationFrame(() => v.classList.add('on'));
@@ -777,20 +785,15 @@ function pickLabels(p) {
   if (p.length) out.push(C.LENGTH[p.length].label.toLowerCase());
   return out;
 }
-// Auto-compiled from what was actually sent: one line per sister, not free text.
+// The report is a direct message from you to the president, auto-compiled from what you actually did (not free text): for each sister, her night in a line, then the
+// positions, how far she was bared, the implements, how she took it, and the aftercare.
 function renderReport() {
   teardownLive(); closeModal(); showStage(false); say(null, null); app.view = 'report';
-  const g = app.g;
-  const lines = g.cards.filter(c => c.done && c.sent).map(c => {
-    const bits = [];
-    if (c.choreName) bits.push(c.choreName + ' — ' + (c.alone ? 'failed (alone)' : BAND_LABEL[c.band].toLowerCase()));
-    if (c.event) bits.push(C.CATEGORIES[c.event.cat].label.toLowerCase());
-    if (!bits.length) bits.push('nothing logged');
-    const s = c.sent, outcome = s.kind === 'reprieve' ? 'Reprieve — ' + C.REPRIEVES[s.reprieve].name + '.' : 'Correction — ' + pickLabels(s.picks).join(', ') + (s.after ? '; after: ' + C.AFTERCARE[s.after].name.toLowerCase() : '') + '.';
-    return h('div', { class: 'report-line' }, h('span', { class: 'nm' }, CH[c.id].name), h('span', { class: 'detail' }, ' · ' + bits.join('; ')), h('div', { class: 'sent-line' }, outcome));
-  });
-  setScreen(appShell(h('div', { class: 'report' }, h('h2', {}, 'Probation Report'), h('div', { class: 'sub' }, 'Night ' + g.day + ' · filed to Standards'), lines),
-    advanceBar('Submit', submitReport, { caption: 'auto-compiled from what you actually sent' })));
+  const g = app.g, rep = R.probationReport(g), me = '@' + app.title.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  setScreen(appShell(h('div', { class: 'report' }, h('h2', {}, 'Probation Report'), h('div', { class: 'sub' }, 'Night ' + g.day + ' · direct message to @president'),
+    h('div', { class: 'dm' }, h('div', { class: 'dm-head' }, h('span', {}, 'New message'), h('span', { class: 'to' }, me + ' → @president')),
+      h('div', { class: 'dm-body' }, h('p', { class: 'dm-intro' }, rep.intro), rep.lines.map(l => h('p', { class: 'dm-line' }, l.text)), h('p', { class: 'dm-sign' }, rep.outro)))),
+    advanceBar('Send to @president', submitReport, { caption: 'auto-compiled from what you actually did' })));
 }
 // The night: Cleared sisters are seen off, the safe word at the day boundary is spoken, the house takes in whoever is next; and then it is morning.
 async function submitReport() { await endNight(); }
