@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Birchwood House — Character editor</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: #16161b; font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: #e8e6e3; }
+  #view { position: fixed; top: 0; left: 0; right: 320px; bottom: 0; }
+  #panel {
+    position: fixed; top: 0; right: 0; width: 320px; height: 100%; box-sizing: border-box;
+    background: rgba(20,20,26,0.96); border-left: 1px solid #2c2c36; padding: 14px 16px; overflow-y: auto; font-size: 13px;
+  }
+  h1 { font-size: 15px; margin: 0 0 2px; }
+  .sub { color: #8a8a96; font-size: 11px; line-height: 1.5; margin-bottom: 10px; }
+  h3.fold { cursor: pointer; user-select: none; }
+  h3.fold::before { content: "▾ "; display: inline-block; width: 1.1em; }
+  h3.fold.shut::before { content: "▸ "; }
+  .folded { display: none !important; }
+  h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #9aa0ac; margin: 16px 0 6px; border-bottom: 1px solid #2c2c36; padding-bottom: 4px; }
+  .tabs, .poses, .toggles { display: flex; flex-wrap: wrap; gap: 4px; }
+  button {
+    background: #2e2e3a; color: #e8e6e3; border: 1px solid #454555; border-radius: 4px;
+    padding: 5px 9px; font-size: 12px; cursor: pointer;
+  }
+  button:hover { background: #3a3a48; }
+  button.on { background: #6b5a2a; border-color: #c9a84c; color: #fff; }
+  .row { margin-bottom: 7px; }
+  .row label { display: flex; justify-content: space-between; color: #c9c9d1; margin-bottom: 1px; font-size: 12px; }
+  .row label span:last-child { color: #c9a84c; font-variant-numeric: tabular-nums; }
+  .row input { width: 100%; margin: 0; }
+  #stat { font-size: 11px; color: #8a8a96; margin-top: 12px; line-height: 1.6; font-variant-numeric: tabular-nums; }
+  .layer { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 12px; color: #c9c9d1; }
+  .layer label { flex: 1; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .layer .kind { color: #6e6e7a; font-size: 11px; }
+  input[type=color] { width: 30px; height: 20px; padding: 0; border: 1px solid #454555; background: none; cursor: pointer; }
+  .swatches { display: flex; gap: 5px; align-items: center; }
+  .swatches button { width: 22px; height: 22px; padding: 0; border-radius: 50%; }
+  .swatches button.on { outline: 2px solid #c9a84c; outline-offset: 1px; }
+  #pe-banner { position: fixed; top: 10px; left: 12px; max-width: calc(100% - 360px); padding: 6px 10px; border-radius: 4px; background: rgba(107,90,42,0.92); border: 1px solid #c9a84c; color: #fff; font-size: 12px; line-height: 1.5; pointer-events: none; display: none; }
+  #pe-banner b { font-weight: 600; }
+  .row input.num { width: 58px; margin: 0; padding: 0 2px; background: #101014; color: #c9a84c; border: 1px solid #2c2c36; border-radius: 3px; font: inherit; text-align: right; font-variant-numeric: tabular-nums; }
+  .ed-ta { width: 100%; box-sizing: border-box; height: 100px; margin-top: 4px; background: #101014; color: #b8b8c4; border: 1px solid #2c2c36; border-radius: 3px; font: 11px ui-monospace, Consolas, monospace; }
+  #panel select { background: #101014; color: #e8e6e3; border: 1px solid #454555; border-radius: 4px; padding: 4px; font-size: 12px; }
+  #panel code { background: #101014; padding: 0 3px; border-radius: 3px; color: #e8cf8a; }
+  .ed-item { display: flex; gap: 6px; align-items: baseline; padding: 4px 6px; border: 1px solid #2c2c36; border-radius: 4px; margin-top: 4px; font-size: 12px; } .ed-item span { flex: 1; } .ed-item small { display: block; color: #8a8a96; }
+  #json { width: 100%; box-sizing: border-box; height: 90px; margin-top: 6px; background: #101014; color: #b8b8c4; border: 1px solid #2c2c36; font: 11px ui-monospace, Consolas, monospace; display: none; }
+</style>
+</head>
+<body>
+<div id="view"></div>
+<div id="pe-banner"></div>
+<div id="panel">
+  <h1>Character editor</h1>
+  <div class="sub">A skeleton with generated skin, built from each character's measurements. The body is modelled as a smooth signed-distance field and turned into a mesh once per measurement change. After that it's posed by GPU skinning on the skeleton.</div>
+
+  <h3>Character</h3>
+  <div class="tabs" id="tabs"></div>
+
+  <h3>Clothing — <span id="c-name"></span></h3>
+  <div class="sub" style="margin:0 0 3px">Look (all characters)</div>
+  <div class="tabs" id="looks"></div>
+  <div class="sub" style="margin:8px 0 3px">Layers, innermost first. Tick to wear in this look.</div>
+  <div id="layers"></div>
+  <div class="sub" style="margin:8px 0 3px">Skin tone</div>
+  <div class="swatches" id="skins"></div>
+
+  <h3>Pose</h3>
+  <div class="poses" id="poses"></div>
+
+  <h3>View</h3>
+  <div class="toggles">
+    <button id="t-lineup">Lineup</button>
+    <button id="t-skel">Skeleton</button>
+    <button id="t-weights">Weights</button>
+    <button id="t-wire">Wireframe</button>
+    <button id="t-spin">Turntable</button>
+    <button id="t-head">Head camera</button>
+  </div>
+
+  <h3>Discipline scene</h3>
+  <div class="toggles">
+    <button id="sc-on">Show scene</button>
+    <button id="sc-loop">Loop swing</button>
+    <button id="sc-smack">Smack</button>
+    <button id="sc-clear">Clear marks</button>
+    <button id="sc-sound" class="on">Sound</button>
+    <button id="sc-pin" title="Hold both bodies' feet where they stand (position and angle) while you edit the rest of the pose; the Hips position always does. Astride also holds both pairs of hands, and the bodies themselves, where they are, so everything stays put relative to the chair">Pin feet</button>
+  </div>
+  <div class="sub" style="margin:8px 0 3px">Implement</div>
+  <div class="tabs" id="sc-implements"></div>
+  <div class="sub" style="margin:8px 0 3px">Disciplinarian</div>
+  <div class="tabs" id="sc-giver"></div>
+  <div class="sub" style="margin:8px 0 3px">Subject</div>
+  <div class="tabs" id="sc-subject"></div>
+  <div class="sub" style="margin:8px 0 3px">Position</div>
+  <div class="tabs" id="sc-position"></div>
+  <div class="sub" style="margin:8px 0 3px">Skirt (for anyone who wears one): it drapes over the pose as cloth, or is hitched up at the back, or is left off</div>
+  <div class="tabs" id="sc-skirt"></div>
+  <div class="sub" style="margin:8px 0 3px">Camera angles (standard views of the scene as the game frames it; drag, scroll and right-drag still move the view)</div>
+  <div class="tabs" id="sc-cams"></div>
+  <div class="sub" style="margin:8px 0 3px">Beat</div>
+  <div class="poses" id="sc-beats"></div>
+  <div class="row" style="margin-top:8px"><label><span>Swing speed</span><span id="v-t-speed">1.00×</span></label><input id="s-t-speed" type="range" min="0.25" max="3" step="0.05" value="1"></div>
+  <div class="row"><label><span>Hold at contact</span><span id="v-t-contactHold">0.35 s</span></label><input id="s-t-contactHold" type="range" min="0" max="2" step="0.05" value="0.35"></div>
+  <div class="row"><label><span>Hold with arm raised</span><span id="v-t-raisedHold">0.20 s</span></label><input id="s-t-raisedHold" type="range" min="0" max="2" step="0.05" value="0.2"></div>
+  <div class="row" style="margin-top:8px"><label><span>Palm angle at contact (skin → glute centre)</span><span id="v-aim">65%</span></label><input id="s-aim" type="range" min="0" max="100" step="5" value="65"></div>
+
+  <h3>Aftercare scene</h3>
+  <div class="sub" style="margin:0 0 6px">The four scenes shown after a correction, with the Disciplinarian and Subject chosen above and the clothes as set for the Subject. Use Edit pose (below) to reshape the base pose: the scene is held still, with the writing at one place and, for Corner time, the subject standing in the open. The pose report's entries go in js/poses.js under corner, lines, held and warm. The Discipline scene is closed while one is open.</div>
+  <div class="tabs" id="af-kinds"></div>
+
+  <h3>Pose editor</h3>
+  <div class="sub" style="margin:0 0 6px">Freezes the discipline scene at the current beat so you can reshape it. Drag a joint in the view; click one to fine-tune it below. The gold handle moves the implement, and the arm follows. Report collects everything for Claude. The scene goes back to its own pose when you stop editing.</div>
+  <div class="toggles">
+    <button id="pe-on">Edit pose</button>
+    <button id="pe-pin" class="on" title="Hands stay where they are while the body or shoulders move">Pin hands</button>
+    <button id="pe-reset">Reset beat</button>
+    <button id="pe-report">Report</button>
+  </div>
+  <div class="sub" style="margin:8px 0 3px">Joints shown for</div>
+  <div class="tabs" id="pe-who"><button data-who="g" class="on">Disciplinarian</button><button data-who="s">Subject</button></div>
+  <div id="pe-status" class="sub" style="margin:8px 0 0;min-height:1.4em;color:#c9a84c"></div>
+  <div id="pe-joint" style="display:none">
+    <div class="sub" style="margin:8px 0 3px">Selected: <span id="pe-joint-name" style="color:#e8e6e3"></span> (bone's own rotation, degrees)</div>
+    <div id="pe-joint-sliders"></div>
+  </div>
+  <div id="pe-tool" style="display:none">
+    <div class="sub" style="margin:8px 0 3px">Implement: striking-face centre (cm, world) and its turn from the scene's own angle (degrees)</div>
+    <div id="pe-tool-sliders"></div>
+  </div>
+  <textarea id="pe-out" readonly style="width:100%;box-sizing:border-box;height:120px;margin-top:6px;background:#101014;color:#b8b8c4;border:1px solid #2c2c36;font:11px ui-monospace,Consolas,monospace;display:none"></textarea>
+
+  <h3>Report — to make an edit permanent</h3>
+  <div class="sub" style="margin:0 0 6px">Everything here is a preview: nothing is saved, and <a href="index.html" style="color:#c9a84c">the game</a> never sees it. To keep an edit, make a report, copy it and paste it back into the chat, and it will be made permanent in the project.</div>
+  <div class="toggles">
+    <button id="ed-rdesign" class="on">Design report (this character)</button>
+    <button id="ed-rall">Every changed design</button>
+    <button id="ed-rposes">Pose report</button>
+    <button id="ed-copy">Copy</button>
+  </div>
+  <textarea id="ed-report" class="ed-ta" spellcheck="false" readonly style="height:170px" placeholder="The report appears here."></textarea>
+  <div class="sub" style="margin:8px 0 3px">Try a design in the preview: a few fields as JSON (<code>{"height":172,"outfit":{"hair":"#5a1e12"}}</code>) or a whole preset as “Show as JSON” prints it. Objects merge, arrays replace, <code>null</code> removes a field; colours can be numbers, <code>0xrrggbb</code> or <code>"#rrggbb"</code>.</div>
+  <textarea id="ed-design" class="ed-ta" spellcheck="false"></textarea>
+  <div class="toggles"><button id="ed-apply">Apply to the preview</button><button id="ed-show">Show as JSON</button><button id="ed-revert">Revert this character</button></div>
+  <div id="ed-msg" class="sub" style="margin-top:8px;min-height:2.4em;white-space:pre-wrap"></div>
+
+  <h3>Measurements — <span id="m-name"></span></h3>
+  <div id="sliders"></div>
+
+  <h3>Face — <span id="f-name"></span></h3>
+  <div id="face-sliders"></div>
+
+  <h3>Expression — <span id="e-name"></span></h3>
+  <div class="toggles" style="margin-bottom:8px"><button id="e-life" class="on">Blinks &amp; eye movement</button></div>
+  <div class="sub" style="margin:0 0 3px">Mood. Pick one to edit this character's version of it; None edits their resting face.</div>
+  <div class="toggles" id="moods" style="margin-bottom:8px"></div>
+  <div id="expr-sliders"></div>
+
+  <h3>Mesh</h3>
+  <div class="row"><label><span>Voxel size</span><span id="v-voxel">10 mm</span></label><input id="s-voxel" type="range" min="5" max="14" step="1" value="10"></div>
+  <div class="toggles">
+    <button id="b-reset">Reset to preset</button>
+    <button id="b-json">Show JSON</button>
+  </div>
+  <textarea id="json" readonly></textarea>
+  <div id="stat"></div>
+</div>
+
+<script>window.FS_BUILD="20261008-0150";(function(){var s=["vendor/three.min.js", "vendor/OrbitControls.js", "starlight-engine.js", "js/content.js", "js/edits.js", "js/poses.js", "js/room.js", "js/bodies.js", "js/scene.js", "js/editor-setup.js"];for(var i=0;i<s.length;i++)document.write('<script src="'+s[i]+'?v='+window.FS_BUILD+'"><\/script>');})();</script>
+<script>
+(function () {
+'use strict';
+{ const tag = document.createElement('div'); tag.textContent = 'build ' + (window.FS_BUILD || '?'); tag.style.cssText = 'position:fixed;left:6px;bottom:4px;z-index:9;font:10px monospace;color:#8a8a96;opacity:.6;pointer-events:none'; document.body.appendChild(tag); }
+// The models and discipline scene live in starlight-engine.js; the cast and the furniture come from js/editor-setup.js.
+// This file is the viewer's UI around them, plus what saves to the game.
+const S = window.Starlight;
+const { PRESETS, ORDER, BONES, POSES, clone } = S;
+
+const SLIDERS = [
+  ['height', 'Height', 145, 195, 0.5, 'cm'],
+  ['legs', 'Leg length', 0.92, 1.08, 0.01, '×'],
+  ['shoulders', 'Shoulder width', 30, 50, 0.5, 'cm'],
+  ['bust', 'Bust / chest', 70, 115, 0.5, 'cm'],
+  ['underbust', 'Underbust', 60, 105, 0.5, 'cm'],
+  ['cup', 'Cup size (UK)', 1, 8, 1, 'cup'],
+  ['waist', 'Waist', 50, 100, 0.5, 'cm'],
+  ['hip', 'Hip', 70, 120, 0.5, 'cm'],
+  ['glutes', 'Glute shape', 0.6, 1.4, 0.01, '×'],
+  ['endowment', 'Endowment (male builds)', 0.4, 1.6, 0.01, '×'],
+  ['thigh', 'Thigh', 38, 70, 0.5, 'cm'],
+  ['knee', 'Knee', 28, 45, 0.5, 'cm'],
+  ['calf', 'Calf', 26, 45, 0.5, 'cm'],
+  ['ankle', 'Ankle', 17, 27, 0.5, 'cm'],
+  ['neck', 'Neck', 26, 42, 0.5, 'cm'],
+  ['arm', 'Upper arm', 20, 38, 0.5, 'cm'],
+  ['forearm', 'Forearm', 18, 32, 0.5, 'cm'],
+  ['wrist', 'Wrist', 12, 19, 0.5, 'cm'],
+  ['head', 'Head size', 0.9, 1.1, 0.01, '×'],
+];
+const current = {};                       // live (editable) measurements per character
+ORDER.forEach(k => current[k] = EDITOR.initial(k));   // the design in js/bodies.js, to be edited as a preview
+
+// ════════════════════════════════════════════════════════════════
+// SCENE
+// ════════════════════════════════════════════════════════════════
+const lin = S.lin;
+const viewEl = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+// A phone's GPU can refuse a shader and the skin just doesn't draw: say why on screen (also shown with ?gl in the address).
+(() => { const b = document.createElement('div'); b.id = 'glbanner'; b.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:50;background:#5a1f1f;color:#ffd9d9;font:12px/1.4 monospace;padding:8px 10px;border-radius:6px;white-space:pre-wrap;display:none;max-height:40vh;overflow:auto'; b.onclick = () => b.style.display = 'none'; document.body.appendChild(b);
+  S.watchGL(renderer, msg => { b.textContent = msg; b.style.display = 'block'; }); })();
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(viewEl.clientWidth, viewEl.clientHeight);
+renderer.shadowMap.enabled = true;
+renderer.localClippingEnabled = true;   // eyelids are trimmed by clipping planes
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+viewEl.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x16161b);
+const camera = new THREE.PerspectiveCamera(35, viewEl.clientWidth / viewEl.clientHeight, 0.05, 50);
+camera.position.set(1.2, 1.25, 3.2);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.95, 0);
+controls.enableDamping = true;
+
+scene.add(new THREE.HemisphereLight(0xf4efe8, 0x2a2622, 0.55));
+const key = new THREE.DirectionalLight(0xfff1e0, 1.25);
+key.position.set(2, 4, 3); key.castShadow = true;
+key.shadow.bias = -0.0004; key.shadow.normalBias = 0.012;   // no self-shadow acne on the neck under the jaw
+key.shadow.mapSize.set(2048, 2048);
+Object.assign(key.shadow.camera, { left: -2.5, right: 2.5, top: 2.5, bottom: -0.5, near: 0.5, far: 12 });
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x9fb8ff, 0.55);
+rim.position.set(-2.5, 2.5, -3);
+scene.add(rim);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(4, 64), new THREE.MeshStandardMaterial({ color: lin(0x1c1c22), roughness: 0.95 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
+scene.add(floor);
+
+// ════════════════════════════════════════════════════════════════
+// STATE + UI
+// ════════════════════════════════════════════════════════════════
+const view = { lineup: false, skeleton: false, weights: false, wire: false, spin: false, voxel: 0.010, pose: 'Relaxed', selected: ORDER[0] };
+let chars = {};
+// Discipline scene settings (applied to the engine's scene state when it's built).
+const sc = { sound: true, position: 'lap', implement: 'hand', on: false, giver: 'keeper-a', subject: ORDER[0], beat: 'relaxed', loop: false, side: 'L', timing: { ...S.DEFAULT_TIMING }, palmAim: 0.65, skirt: 'up' };
+let scn = null;   // the engine's scene state while shown (sess.scn)
+let tab = null, tabKind = null;   // an aftercare scene shown in place of the discipline scene (see showTab)
+let sess = null;  // the game's own session (FairyShoeScene.createSession) running the discipline scene: the same code as in the game
+// Pose editor state (see POSE EDITOR); while `on`, the scene is frozen and edited by hand.
+const PE = { on: false };
+
+const build = k => S.buildCharacter(current[k], { voxel: view.voxel, key: k, weights: view.weights, wire: view.wire });
+
+function placeChars() {
+  const keys = sc.on || tab ? [] : view.lineup ? ORDER : [view.selected];
+  ORDER.forEach(k => { if (chars[k]) { chars[k].group.visible = keys.includes(k); chars[k].helper.visible = view.skeleton && keys.includes(k); } });
+  const gap = view.pose === SPREAD ? 1.25 : 0.75;   // room for a wide stance
+  keys.forEach((k, i) => { chars[k].group.position.x = (i - (keys.length - 1) / 2) * gap; });
+  if (sc.on && scn) for (const c of [scn.g, scn.s]) c.helper.visible = view.skeleton;
+  else if (view.headCam) { if (headKey() !== lastKey) aimAtFace(); }   // stay on the face (re-aim only for another character)
+  else controls.target.set(0, 0.9, 0);
+}
+
+function rebuild(keys, voxel = view.voxel) {
+  for (const k of keys) {
+    const old = chars[k];
+    const prevPose = old ? old.pose : null;
+    if (old) S.disposeCharacter(old);
+    const ch = S.buildCharacter(current[k], { voxel, key: k, weights: view.weights, wire: view.wire });
+    if (old) S.copyMarks(old, ch);
+    if (gathered[k]) S.setSkirtGathered(ch, true);
+    applyLowered(ch, k);
+    if (moodSel[k] && moodSel[k] !== 'none') S.setMood(ch, moodSel[k]);   // marks are in rest space, so they carry over to the rebuilt body
+    chars[k] = ch;
+    scene.add(ch.group); scene.add(ch.helper);
+    if (view.pose) applyPose(ch, view.pose, true);
+    if (prevPose) for (const b of BONES) ch.pose[b] = prevPose[b].clone();
+    applyViewToChar(ch);
+  }
+  // Measurement edits to anyone in the scene rebuild the scene too.
+  if (sc.on && keys.some(k => k === sc.giver || k === sc.subject)) buildScene();
+  placeChars();
+  updateStats();
+}
+
+function applyViewToChar(ch) {
+  ch.mesh.material.userData.uniforms.uWeights.value = view.weights ? 1 : 0;
+  ch.helper.visible = view.skeleton && ch.group.visible;
+}
+
+function updateStats() {
+  const ch = chars[view.selected];
+  const s = ch.stats;
+  document.getElementById('stat').innerHTML =
+    `${ch.spec.m.name}: ${s.verts.toLocaleString()} verts · ${s.tris.toLocaleString()} tris<br>` +
+    `build ${s.ms} ms (surface ${s.stages.surface} · project ${s.stages.project} · weights ${s.stages.weights})`;
+}
+
+// Tabs: one per character (shown alone), and All (everyone in a line-up). The
+// sliders and clothing always edit the last character picked.
+const tabsEl = document.getElementById('tabs');
+ORDER.forEach(k => {
+  const b = document.createElement('button');
+  b.textContent = PRESETS[k].name; b.id = 'tab-' + k;
+  b.onclick = () => { view.selected = k; view.lineup = false; refreshTabs(); buildSliders(); buildClothing(); placeChars(); updateStats(); };
+  tabsEl.appendChild(b);
+});
+const allTab = document.createElement('button');
+allTab.textContent = 'All'; allTab.id = 'tab-all';
+allTab.onclick = () => { view.lineup = true; refreshTabs(); placeChars(); };
+tabsEl.appendChild(allTab);
+function refreshTabs() {
+  ORDER.forEach(k => document.getElementById('tab-' + k).classList.toggle('on', k === view.selected));
+  allTab.classList.toggle('on', view.lineup);
+  document.getElementById('t-lineup').classList.toggle('on', view.lineup);
+}
+
+// Poses. "Hands on head" is the relaxed stance with both palms placed on the crown by
+// IK; "Spread" adds a wide stance, feet twice shoulder width apart (S.wideStance). The
+// body's drop for a wide stance eases in with the pose (see animate).
+const HANDS_ON_HEAD = 'Hands on head', SPREAD = 'Spread';
+function applyPose(ch, name, instant = false) {
+  const wide = name === SPREAD ? S.wideStance(ch, 2) : null;
+  S.setPose(ch, wide ? wide.pose : name === HANDS_ON_HEAD ? 'Relaxed' : name, instant);
+  ch.handsOnHead = name === HANDS_ON_HEAD || name === SPREAD;
+  ch.stanceDrop = wide ? wide.drop : 0;
+  if (instant) ch.group.position.y = -ch.stanceDrop;
+}
+const posesEl = document.getElementById('poses');
+[...Object.keys(POSES), HANDS_ON_HEAD, SPREAD].forEach(name => {
+  const b = document.createElement('button');
+  b.textContent = name; b.dataset.pose = name;
+  b.onclick = () => { view.pose = name; Object.values(chars).forEach(ch => applyPose(ch, name)); refreshPoses(); placeChars(); };
+  posesEl.appendChild(b);
+});
+function refreshPoses() { posesEl.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.pose === view.pose)); }
+
+// Clothing. A look applies to everyone; the layer ticks, colours and skin tone
+// edit the selected character. None of it rebuilds the mesh (S.dress / S.setSkin).
+const LOOKS = [...new Set(ORDER.flatMap(k => Object.keys(PRESETS[k].looks)))];
+const SKIN_TONES = [0xf5dcc8, 0xe9c6a5, 0xd4a57e, 0xa8744f, 0x7a4e33, 0x4f3322];
+const hex = n => '#' + n.toString(16).padStart(6, '0');
+const unhex = s => parseInt(s.slice(1), 16);
+// Everyone built from character k: the turntable model and, if shown, the scene's.
+const builtFrom = k => [chars[k], ...(scn ? [scn.g, scn.s] : [])].filter(c => c && c.key === k);
+function redress(k) { builtFrom(k).forEach(c => { S.dress(c); if (gathered[k]) S.setSkirtGathered(c, true); applyLowered(c, k); }); refreshJson(); }
+const looksEl = document.getElementById('looks');
+LOOKS.forEach(name => {
+  const b = document.createElement('button');
+  b.textContent = name; b.dataset.look = name;
+  b.onclick = () => { ORDER.forEach(k => { if (current[k].looks[name]) { current[k].look = name; redress(k); } }); buildClothing(); };
+  looksEl.appendChild(b);
+});
+// Per character, kept through rebuilds and scenes: skirt gathered at the back; bottoms down;
+// briefs down.
+const gathered = {}, lowered = {}, briefsDown = {};
+const applyLowered = (c, k) => { if (lowered[k]) S.setLowered(c, 'bottom', true); if (briefsDown[k]) S.setLowered(c, 'briefs', true); };
+function buildClothing() {
+  const k = view.selected, m = current[k];
+  document.getElementById('c-name').textContent = m.name;
+  looksEl.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.look === m.look));
+  const el = document.getElementById('layers');
+  el.innerHTML = '';
+  const worn = new Set(m.looks[m.look] || []);
+  // The wardrobe is listed innermost first, so ticked layers keep that order.
+  Object.entries(m.wardrobe).forEach(([id, L]) => {
+    const row = document.createElement('div'); row.className = 'layer';
+    row.innerHTML = `<label><input type="checkbox"${worn.has(id) ? ' checked' : ''}>${L.name}<span class="kind">${L.kind}${L.style ? ' · ' + L.style : ''}</span></label><input type="color" value="${hex(L.color)}">`;
+    row.querySelector('input[type=checkbox]').onchange = e => {
+      if (e.target.checked) worn.add(id); else worn.delete(id);
+      m.looks[m.look] = Object.keys(m.wardrobe).filter(i => worn.has(i));
+      redress(k);
+    };
+    // Colour only: update the layer's uniform where it's worn.
+    row.querySelector('input[type=color]').oninput = e => {
+      L.color = unhex(e.target.value);
+      builtFrom(k).forEach(c => { const i = c.layers.indexOf(L); if (i >= 0) c.mesh.material.userData.uniforms.uLayer.value[i].copy(S.lin(L.color)); });
+      if (L.kind === 'skirt') builtFrom(k).forEach(c => { if (c.skirt) c.skirt.mesh.material.color.copy(S.lin(L.color)); });
+      refreshJson();
+    };
+    el.appendChild(row);
+  });
+  // Bottoms down: shorts or leggings lowered as in a correction (to the knee, or the
+  // calf for leggings), here and in the discipline scene when this character is the subject.
+  if (m.wardrobe.bottom) {
+    const b = document.createElement('button');
+    b.textContent = 'Bottoms down'; b.id = 'c-lower'; b.style.margin = '4px 4px 0 0';
+    b.classList.toggle('on', !!lowered[k]);
+    b.onclick = () => {
+      lowered[k] = !lowered[k]; b.classList.toggle('on', lowered[k]);
+      builtFrom(k).forEach(c => S.setLowered(c, 'bottom', lowered[k]));
+    };
+    el.appendChild(b);
+  }
+  // Briefs down: briefs and hipsters to just below the thigh's crease, a thong nearer the
+  // knees, trunks to the knees as shorts go (see the engine's briefsDown). They show once
+  // anything worn over them is down too.
+  if (m.wardrobe.briefs) {
+    const b = document.createElement('button');
+    b.textContent = 'Briefs down'; b.id = 'c-briefs'; b.style.margin = '4px 4px 0 0';
+    b.classList.toggle('on', !!briefsDown[k]);
+    b.onclick = () => {
+      briefsDown[k] = !briefsDown[k]; b.classList.toggle('on', briefsDown[k]);
+      builtFrom(k).forEach(c => S.setLowered(c, 'briefs', briefsDown[k]));
+    };
+    el.appendChild(b);
+  }
+  const sw = document.getElementById('skins');
+  sw.innerHTML = '';
+  const setSkin = v => { m.skin = v; builtFrom(k).forEach(c => S.setSkin(c, v)); refreshJson(); buildClothing(); };
+  SKIN_TONES.forEach(v => {
+    const b = document.createElement('button');
+    b.style.background = hex(v); b.title = hex(v);
+    b.classList.toggle('on', v === m.skin);
+    b.onclick = () => setSkin(v);
+    sw.appendChild(b);
+  });
+  const custom = document.createElement('input');
+  custom.type = 'color'; custom.value = hex(m.skin || S.SKIN); custom.title = 'Custom skin tone';
+  custom.onchange = () => setSkin(unhex(custom.value));
+  sw.appendChild(custom);
+}
+
+// Measurement sliders
+let rebuildTimer = null;
+// While a slider is dragged, rebuild at a coarse voxel size for responsiveness;
+// on release, rebuild at the chosen resolution.
+const DRAG_VOXEL = 0.013;
+function scheduleRebuild(keys, voxel) { clearTimeout(rebuildTimer); rebuildTimer = setTimeout(() => rebuild(keys, voxel), 60); }
+function fmt(v, unit) { return unit === '×' ? v.toFixed(2) + '×' : unit === '±' ? (v > 0 ? '+' : '') + v.toFixed(2) : unit === 'cup' ? 'ABCDEFGH'[v - 1] : unit === '' ? v.toFixed(2) : v + ' ' + unit; }
+// Face shape (engine faceParams): multipliers of the build's base face, and a brow raise.
+const FACE_SLIDERS = [
+  ['eye', 'Eye size', 0.8, 1.3, 0.01, '×'],
+  ['eyeGap', 'Eye spacing', 0.85, 1.15, 0.01, '×'],
+  ['eyeHeight', 'Eye height', -1, 1, 0.05, '±'],
+  ['brow', 'Brow height', -1, 1, 0.05, '±'],
+  ['nose', 'Nose length (tip)', 0.7, 1.4, 0.01, '×'],
+  ['bridge', 'Nose bridge height', 0.6, 1.5, 0.01, '×'],
+  ['hump', 'Nose hump', -1, 1, 0.05, '±'],
+  ['tipTilt', 'Nose tip tilt', -1, 1, 0.05, '±'],
+  ['noseWidth', 'Nose width', 0.7, 1.4, 0.01, '×'],
+  ['lips', 'Lip fullness', 0.6, 1.6, 0.01, '×'],
+  ['mouth', 'Mouth width', 0.8, 1.25, 0.01, '×'],
+  ['mouthHeight', 'Mouth height', -1, 1, 0.05, '±'],
+  ['youth', 'Youth', 0, 1, 0.05, ''],
+  ['cheeks', 'Cheeks', 0.7, 1.4, 0.01, '×'],
+  ['jaw', 'Jaw width', 0.85, 1.3, 0.01, '×'],
+  ['chin', 'Chin', 0.8, 1.3, 0.01, '×'],
+];
+// Expression (engine EXPR_DEFAULTS): applied live, no rebuild.
+const EXPR_SLIDERS = [
+  ['browInner', 'Brow inner raise', -1, 1, 0.05, '±'],
+  ['browOuter', 'Brow outer raise', -1, 1, 0.05, '±'],
+  ['browFurrow', 'Brow furrow', 0, 1, 0.05, ''],
+  ['browAsym', 'Brow asymmetry (L↑ / R↑)', -1, 1, 0.05, '±'],
+  ['lidUpper', 'Upper lids (heavy / wide)', -1, 1, 0.05, '±'],
+  ['squint', 'Lower lids (tension)', 0, 1, 0.05, ''],
+  ['gazeX', 'Gaze (her right / left)', -1, 1, 0.05, '±'],
+  ['gazeY', 'Gaze (down / up)', -1, 1, 0.05, '±'],
+  ['mouthL', 'Mouth corner, her left', -1, 1, 0.05, '±'],
+  ['mouthR', 'Mouth corner, her right', -1, 1, 0.05, '±'],
+  ['teeth', 'Teeth bared', 0, 1, 0.05, ''],
+  ['mouthOpen', 'Mouth open', 0, 1, 0.05, ''],
+  ['saccade', 'Eye movement', 0, 1, 0.05, ''],
+  ['contact', 'Eye contact', 0, 1, 0.05, ''],
+  ['blink', 'Blink rate', 0, 2, 0.05, '×'],
+];
+// Moods (engine MOODS): one at a time, for the selected character (and their scene copy).
+const moodSel = {};
+['none', ...Object.keys(S.MOODS)].forEach(name => {
+  const b = document.createElement('button');
+  b.textContent = name[0].toUpperCase() + name.slice(1); b.dataset.mood = name;
+  b.onclick = () => { const k = view.selected; moodSel[k] = name; builtFrom(k).forEach(c => S.setMood(c, name === 'none' ? null : name)); buildExpression(); };
+  document.getElementById('moods').appendChild(b);
+});
+function refreshMoods() { document.querySelectorAll('#moods button').forEach(b => b.classList.toggle('on', b.dataset.mood === (moodSel[view.selected] || 'none'))); }
+document.getElementById('e-life').onclick =e => { view.faceLife = view.faceLife === false; e.target.classList.toggle('on', view.faceLife !== false); };
+// With no mood picked, the sliders edit the character's resting expression. With a
+// mood picked, they edit that character's version of the mood: they show the face as
+// it looks (rest + mood), and store each value as its difference from rest in the
+// preset's `moods` (starting from the shared mood the first time it's edited).
+function buildExpression() {
+  const k = view.selected, m = current[k], mood = moodSel[k] && moodSel[k] !== 'none' ? moodSel[k] : null;
+  document.getElementById('e-name').textContent = m.name + (mood ? ' · ' + mood[0].toUpperCase() + mood.slice(1) : ' · at rest');
+  refreshMoods();
+  m.expr = { ...S.EXPR_DEFAULTS, ...(m.expr || {}) };
+  const off = mood ? S.moodFor(m, mood) : null;
+  const shown = key => { if (!mood) return m.expr[key]; const [lo, hi] = S.EXPR_RANGE[key] || [-1, 1]; return Math.min(hi, Math.max(lo, m.expr[key] + (off[key] || 0))); };
+  const el = document.getElementById('expr-sliders');
+  el.innerHTML = '';
+  for (const [key, label, min, max, step, unit] of EXPR_SLIDERS) {
+    if (mood && ['saccade', 'contact', 'blink'].includes(key)) continue;   // moods don't change eye movement or blinking
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = `<label><span>${label}</span><span>${fmt(shown(key), unit)}</span></label><input type="range" min="${min}" max="${max}" step="${step}" value="${shown(key)}">`;
+    const input = row.querySelector('input'), out = row.querySelector('label span:last-child');
+    input.oninput = () => {
+      const v = parseFloat(input.value);
+      if (mood) {
+        m.moods = m.moods || {};
+        if (!m.moods[mood]) m.moods[mood] = { ...S.MOODS[mood] };
+        m.moods[mood][key] = +(v - m.expr[key]).toFixed(3);
+      } else {
+        m.expr[key] = v;
+        builtFrom(k).forEach(c => S.setExpression(c, m.expr));
+      }
+      out.textContent = fmt(v, unit); refreshJson();
+    };
+    el.appendChild(row);
+  }
+}
+function buildSliders() {
+  buildExpression();
+  const m = current[view.selected];
+  document.getElementById('m-name').textContent = m.name;
+  const el = document.getElementById('sliders');
+  el.innerHTML = '';
+  for (const [key, label, min, max, step, unit] of SLIDERS) {
+    if (key === 'cup' && m.build !== 'female') continue;
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = `<label><span>${label}</span><span>${fmt(m[key], unit)}</span></label><input type="range" min="${min}" max="${max}" step="${step}" value="${m[key]}">`;
+    const input = row.querySelector('input'), out = row.querySelector('label span:last-child');
+    input.oninput = () => { m[key] = parseFloat(input.value); out.textContent = fmt(m[key], unit); scheduleRebuild([view.selected], Math.max(view.voxel, DRAG_VOXEL)); refreshJson(); };
+    input.onchange = () => scheduleRebuild([view.selected], view.voxel);
+    el.appendChild(row);
+  }
+  document.getElementById('f-name').textContent = m.name;
+  const fe = document.getElementById('face-sliders'), F = S.faceParams(m);
+  fe.innerHTML = '';
+  for (const [key, label, min, max, step, unit] of FACE_SLIDERS) {
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = `<label><span>${label}</span><span>${fmt(F[key], unit)}</span></label><input type="range" min="${min}" max="${max}" step="${step}" value="${F[key]}">`;
+    const input = row.querySelector('input'), out = row.querySelector('label span:last-child');
+    input.oninput = () => { m[key] = parseFloat(input.value); out.textContent = fmt(m[key], unit); scheduleRebuild([view.selected], Math.max(view.voxel, DRAG_VOXEL)); refreshJson(); };
+    input.onchange = () => scheduleRebuild([view.selected], view.voxel);
+    fe.appendChild(row);
+  }
+  refreshJson();
+}
+
+function toggle(id, keyName, after) {
+  const b = document.getElementById(id);
+  b.onclick = () => { view[keyName] = !view[keyName]; b.classList.toggle('on', view[keyName]); after && after(); };
+}
+toggle('t-lineup', 'lineup', () => { refreshTabs(); placeChars(); });
+const allChars = () => [...Object.values(chars), ...(scn ? [scn.g, scn.s] : [])];
+toggle('t-skel', 'skeleton', () => { allChars().forEach(applyViewToChar); placeChars(); });
+toggle('t-weights', 'weights', () => allChars().forEach(applyViewToChar));
+toggle('t-wire', 'wire', () => { S.ALL_MATS.forEach(m => m.wireframe = view.wire); });
+toggle('t-spin', 'spin');
+// Head camera: the view is locked on the selected character's face and follows the
+// head as it moves (in the discipline scene too); orbit and zoom still work around it.
+const headOf = () => { const k = view.selected, c = scn && [scn.g, scn.s].find(x => x.key === k) || chars[k]; return c && c.group.visible !== false ? c : null; };
+// The anchor: halfway between the shoulder line and the top of the hair, so the shot
+// holds the head, hair and shoulders.
+const faceCentre = c => {
+  const sh = c.bones.upperArmL.getWorldPosition(new THREE.Vector3()).add(c.bones.upperArmR.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5);
+  const top = c.bones.head.localToWorld(new THREE.Vector3(0, c.spec.H - c.spec.J.head[1] + 0.01, 0));
+  return sh.lerp(top, 0.5);
+};
+// It re-aims (front on) only when turned on or when another character is picked. A
+// rebuild (a slider) or the scene's copy of the same character keeps your angle and
+// distance, and while it's on it follows only the face's height.
+let lastFace = null, lastHead = null, lastKey = null;
+const headKey = () => { const c = headOf(); return c && (c === (scn && scn.g) || c === (scn && scn.s) ? 'scene:' : '') + (c && c.key); };
+const aimAtFace = () => {
+  lastFace = null;
+  const c = headOf(); lastHead = c; lastKey = headKey(); if (!view.headCam || !c) return;
+  c.group.updateMatrixWorld(true);
+  const f = faceCentre(c), fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(c.bones.head.getWorldQuaternion(new THREE.Quaternion()));
+  // Far enough back at 30° to fit the shoulders' width with a margin (or the head-to-shoulder height).
+  const sw = c.bones.upperArmL.getWorldPosition(new THREE.Vector3()).distanceTo(c.bones.upperArmR.getWorldPosition(new THREE.Vector3())) + 0.16;
+  const dist = Math.max(sw / camera.aspect, 0.42) / 2 / Math.tan(15 * Math.PI / 180);
+  controls.target.copy(f); camera.position.copy(f).addScaledVector(fwd, dist);
+  camera.fov = 30; camera.updateProjectionMatrix(); controls.update();
+};
+toggle('t-head', 'headCam', () => { view.fovHeld = false; camGo = null; aimAtFace(); });
+function followHead() {
+  if (!view.headCam) { if (view.fovHeld) return; if (camera.fov !== 35) { camera.fov = 35; camera.updateProjectionMatrix(); } return; }
+  const c = headOf(); if (!c) return;
+  if (c !== lastHead) {
+    if (headKey() !== lastKey) { aimAtFace(); return; }   // another character: look at them afresh
+    lastHead = c; lastFace = null;                       // the same one rebuilt: carry on as you were
+  }
+  const f = faceCentre(c);
+  if (lastFace) { const dy = f.y - lastFace.y; controls.target.y += dy; camera.position.y += dy; }
+  lastFace = f;
+}
+
+const voxelIn = document.getElementById('s-voxel');
+voxelIn.oninput = () => {
+  view.voxel = parseInt(voxelIn.value, 10) / 1000;
+  document.getElementById('v-voxel').textContent = voxelIn.value + ' mm';
+  scheduleRebuild(ORDER);
+};
+document.getElementById('b-reset').onclick = () => {
+  current[view.selected] = clone(PRESETS[view.selected]);
+  buildSliders(); buildClothing(); rebuild([view.selected]);
+};
+const jsonEl = document.getElementById('json');
+document.getElementById('b-json').onclick = () => { jsonEl.style.display = jsonEl.style.display === 'block' ? 'none' : 'block'; refreshJson(); };
+// The selected character's preset as edited: measurements, skin, wardrobe and looks.
+function refreshJson() {
+  jsonEl.value = JSON.stringify(current[view.selected], null, 1);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = viewEl.clientWidth / viewEl.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(viewEl.clientWidth, viewEl.clientHeight);
+});
+
+// ════════════════════════════════════════════════════════════════
+// DISCIPLINE SCENE UI — the scene gets its own freshly built pair of
+// characters, so it never disturbs the ones on the turntable.
+// ════════════════════════════════════════════════════════════════
+function clearScene() {
+  if (!sess) return;
+  // Marks stay with the person when the scene closes.
+  for (const c of [scn.g, scn.s]) if (chars[c.key]) S.copyMarks(c, chars[c.key]);
+  sess.dispose();   // (the session disposes its bodies)
+  sess = null; scn = null;
+}
+// Impact sound: the game's clap (two band-passed noise bursts), louder for a firmer smack.
+// Audio can only start after a click, so it's created on the first one in the panel.
+const Sound = (() => {
+  let ctx = null, buf = null;
+  const init = () => {
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    buf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
+    const d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  };
+  const burst = (t, dur, freq, peak) => {
+    const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    s.buffer = buf; f.type = 'bandpass'; f.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.002 + dur);
+    s.connect(f); f.connect(g); g.connect(ctx.destination); s.start(t); s.stop(t + dur + 0.05);
+  };
+  const clap = (strength = 1) => {
+    if (!ctx || !sc.sound) return;
+    const t = ctx.currentTime, k = 0.25 + 0.2 * strength;
+    if (sc.implement === 'hairbrush') {
+      // Wood: a sharper, drier crack with a short hollow knock under it.
+      burst(t, 0.04, 3600, 1.0 * k); burst(t + 0.004, 0.06, 700, 0.55 * k);
+      return;
+    }
+    if (sc.implement === 'rod') {
+      // A thin bar: a high, sharp whip-crack with little body.
+      burst(t, 0.03, 4800, 1.0 * k); burst(t + 0.002, 0.05, 1500, 0.4 * k);
+      return;
+    }
+    if (sc.implement === 'paddle') {
+      // A broad board: a full, heavy crack with a deep body under it.
+      burst(t, 0.07, 2000, 1.1 * k); burst(t + 0.003, 0.11, 420, 0.8 * k); burst(t + 0.006, 0.05, 4200, 0.35 * k);
+      return;
+    }
+    burst(t, 0.09, 2500, 0.9 * k); burst(t + 0.008, 0.05, 1100, 0.5 * k);
+  };
+  return { init, clap };
+})();
+document.getElementById('panel').addEventListener('pointerdown', () => Sound.init());
+
+function buildScene() {
+  if (PE.on) PE.keep();   // a new pairing or rebuilt body: keep the edits made so far
+  clearScene();
+  // The scene is the game's own session: the same bodies' set-up, skirt, seat, furniture, pose edits (js/poses.js) and per-frame step. Only the bodies
+  // are the editor's (built from the designs being edited, so a change shows at once) and the editor's toggles say what is lowered.
+  sess = EDITOR.session(scene, { giver: sc.giver, subject: sc.subject, position: sc.position, implement: sc.implement,
+    layers: { bottoms: !!lowered[sc.subject], briefs: !!briefsDown[sc.subject], skirt: sc.skirt } }, {
+    build: k => build(k),
+    prepare: c => { if (chars[c.key]) S.copyMarks(chars[c.key], c); if (moodSel[c.key] && moodSel[c.key] !== 'none') S.setMood(c, moodSel[c.key]); applyViewToChar(c); } });
+  scn = sess.scn; scn.chairPlant = sess.plant;
+  const g = scn.g, s = scn.s;
+  if (lowered[sc.giver]) S.setLowered(g, 'bottom', true);
+  for (const c of [g, s]) if (briefsDown[c.key]) S.setLowered(c, 'briefs', true);
+  scn.onImpact = (side, strength) => Sound.clap(strength);
+  scn.timing = sc.timing; scn.palmAim = sc.palmAim; scn.side = sc.side;
+  if (sc.loop) scn.setLoop(true); else scn.setBeat(sc.beat);
+  sess.frozen = PE.on;
+  if (pinWanted && !sess.pinned) sess.pinFeet(true);
+  syncPin();
+  placeChars();
+  if (PE.on) PE.settle();   // a new pairing or implement: re-freeze at the beat
+}
+
+const BEATS = [['relaxed', 'Relaxed'], ['raised', 'Arm raised'], ['contact', 'Contact']];
+function refreshSceneUI() {
+  document.getElementById('sc-on').classList.toggle('on', sc.on);
+  document.getElementById('sc-loop').classList.toggle('on', sc.loop);
+  ORDER.forEach(k => {
+    document.getElementById('scg-' + k).classList.toggle('on', sc.giver === k);
+    document.getElementById('scs-' + k).classList.toggle('on', sc.subject === k);
+  });
+  document.querySelectorAll('#sc-beats button').forEach(b => b.classList.toggle('on', !sc.loop && b.dataset.beat === sc.beat));
+}
+for (const [role, id] of [['giver', 'sc-giver'], ['subject', 'sc-subject']]) {
+  const el = document.getElementById(id);
+  ORDER.forEach(k => {
+    const b = document.createElement('button');
+    b.textContent = PRESETS[k].name; b.id = (role === 'giver' ? 'scg-' : 'scs-') + k;
+    b.onclick = () => {
+      const other = role === 'giver' ? 'subject' : 'giver';
+      if (sc[other] === k) sc[other] = sc[role];   // picking the other role's character swaps them
+      sc[role] = k;
+      if (sc.on) buildScene();
+      refreshSceneUI();
+    };
+    el.appendChild(b);
+  });
+}
+BEATS.forEach(([beat, label]) => {
+  const b = document.createElement('button');
+  b.textContent = label; b.dataset.beat = beat;
+  b.onclick = () => {
+    if (beat === 'contact' && sc.beat === 'contact') sc.side = sc.side === 'L' ? 'R' : 'L';   // repeat presses alternate sides
+    sc.loop = false; sc.beat = beat;
+    if (PE.on) PE.keep();   // remember the edits to the beat being left
+    if (scn) { scn.side = sc.side; scn.setBeat(beat); }
+    if (PE.on) PE.settle();
+    refreshSceneUI();
+  };
+  document.getElementById('sc-beats').appendChild(b);
+});
+document.getElementById('sc-on').onclick = () => {
+  if (tab) clearTab();
+  if (PE.on && sc.on) PE.stop();
+  sc.on = !sc.on;
+  if (sc.on) { buildScene(); camera.position.set(1.8, 1.3, 2.4); controls.target.set(0, 0.6, 0.2); }
+  else { clearScene(); camera.position.set(1.2, 1.25, 3.2); }
+  placeChars(); refreshSceneUI();
+};
+// Positions: across the lap, bent over the table with palms flat on it, or standing with hands on head.
+[['lap', 'Across the lap'], ['case', 'Over the table'], ['head', 'Hands on head'], ['knees', 'Hands on the chair'], ['spread', 'Bent over, feet spread'], ['hips', 'Hips'], ['astride', 'Astride']].forEach(([id, label]) => {
+  const b = document.createElement('button');
+  b.textContent = label; b.dataset.pos = id;
+  b.onclick = () => {
+    if (sc.position === id || !POSITIONS_OK) return;
+    sc.position = id;
+    if (sc.on) buildScene();
+    refreshPositions();
+  };
+  document.getElementById('sc-position').appendChild(b);
+});
+// A browser holding an older cached starlight-engine.js would silently ignore the position.
+const POSITIONS_OK = !!S.POSITIONS;
+function refreshPositions() {
+  // Spread feet: dual-strike implements only (see IMPLEMENTS.dual).
+  if (sc.position === 'spread' && !S.IMPLEMENTS[sc.implement].dual) { sc.implement = Object.keys(S.IMPLEMENTS).find(n => S.IMPLEMENTS[n].dual) || 'hand'; if (scn) scn.setImplement(sc.implement); }
+  document.querySelectorAll('#sc-implements button').forEach(b => { b.disabled = sc.position === 'spread' && !S.IMPLEMENTS[b.dataset.impl].dual; });
+  document.querySelectorAll('#sc-position button').forEach(b => { b.classList.toggle('on', b.dataset.pos === sc.position); if (!POSITIONS_OK && b.dataset.pos !== 'lap') { b.disabled = true; b.title = 'starlight-engine.js is out of date: reload without the cache (Ctrl+Shift+R)'; } });
+  if (typeof refreshImplements === 'function') refreshImplements();
+}
+// Implements (engine IMPLEMENTS): what the disciplinarian holds.
+Object.keys(S.IMPLEMENTS).forEach(name => {
+  const b = document.createElement('button');
+  b.textContent = name === 'hand' ? 'Hand' : name[0].toUpperCase() + name.slice(1).replace('brush', ' brush');
+  b.dataset.impl = name;
+  b.onclick = () => { if (PE.on) PE.keep(); sc.implement = name; if (scn) scn.setImplement(name); if (PE.on) PE.settle(); refreshImplements(); };
+  document.getElementById('sc-implements').appendChild(b);
+});
+// The skirt in the scene: down, hitched up at the back (the game's), or off.
+[['down', 'Down'], ['up', 'Hitched up'], ['off', 'Off']].forEach(([id, label]) => {
+  const b = document.createElement('button');
+  b.textContent = label; b.dataset.skirt = id;
+  b.onclick = () => { sc.skirt = id; document.querySelectorAll('#sc-skirt button').forEach(x => x.classList.toggle('on', x.dataset.skirt === id)); if (sc.on && sess) sess.setLayer('skirt', id); };
+  b.classList.toggle('on', sc.skirt === id);
+  document.getElementById('sc-skirt').appendChild(b);
+});
+// The game's standard camera angles, for the scene: click one to go there, then orbit as usual.
+[['overview', 'Overview'], ['behind', 'Behind'], ['shoulder', 'Over your shoulder'], ['floor', 'Face']].forEach(([id, label]) => {
+  const b = document.createElement('button');
+  b.textContent = label; b.dataset.cam = id; b.title = 'Standard angle';
+  b.onclick = () => {
+    if (!sc.on || !scn) { document.getElementById('sc-on').click(); }
+    if (!scn) return;
+    view.headCam = false; view.fovHeld = true; camGo = EDITOR.cameraPose(id, scn);
+    document.querySelectorAll('#sc-cams button').forEach(x => x.classList.toggle('on', x === b));
+  };
+  document.getElementById('sc-cams').appendChild(b);
+});
+controls.addEventListener('start', () => { camGo = null; document.querySelectorAll('#sc-cams button').forEach(x => x.classList.remove('on')); });
+function refreshImplements() { document.querySelectorAll('#sc-implements button').forEach(b => b.classList.toggle('on', b.dataset.impl === sc.implement)); }
+refreshImplements(); refreshPositions();
+// The aftercare scenes (the game's own: see scene.js createTableau), shown in place of the discipline scene.
+function clearTab() { if (PE.on) PE.stop(); if (tab) { tab.dispose(); tab = null; scn = null; } tabKind = null; document.querySelectorAll('#af-kinds button').forEach(b => b.classList.remove('on')); placeChars(); }
+function showTab(kind) {
+  if (sc.on) document.getElementById('sc-on').click();
+  clearTab();
+  tab = EDITOR.tableau(scene, kind, { giver: current[sc.giver], subject: current[sc.subject], subjectId: sc.subject, editor: true,
+    layers: { bottoms: !!lowered[sc.subject], briefs: !!briefsDown[sc.subject], skirt: sc.skirt } }, { marks: {} });
+  // The pose editor works on it as it does on the discipline scene: the base pose only (the scene is held still, with the writing at one place).
+  scn = { g: tab.giver, s: tab.subject, tool: null, tab: true, side: 'L', update: dt => tab.tick(dt, 0),
+    // (once the scene has come to rest: what the bones are is taken as the pose table, so the report holds the edited values as they are; not on every step, or the scene's own additions would pile up)
+    sync: () => { for (const c of [tab.giver, tab.subject]) for (const b of BONES) { c.pose[b].copy(c.bones[b].quaternion); c.target[b] = c.pose[b]; } }, setBeat() {}, setLoop() {}, chairPlant: null };
+  tabKind = kind; camera.position.copy(tab.view.pos); controls.target.copy(tab.view.tgt); camera.fov = tab.view.fov; camera.updateProjectionMatrix(); controls.update();
+  document.querySelectorAll('#af-kinds button').forEach(b => b.classList.toggle('on', b.dataset.kind === kind));
+  placeChars();
+}
+EDITOR.tableaux.forEach(([id, label]) => {
+  const b = document.createElement('button'); b.textContent = label; b.dataset.kind = id;
+  b.onclick = () => { if (tabKind === id) clearTab(); else showTab(id); };
+  document.getElementById('af-kinds').appendChild(b);
+});
+let pinWanted = false;
+const syncPin = () => document.getElementById('sc-pin').classList.toggle('on', !!(sess && sess.pinned));
+document.getElementById('sc-pin').onclick = () => { if (!sess) return; pinWanted = !sess.pinned; sess.pinFeet(pinWanted); syncPin(); };
+document.getElementById('sc-sound').onclick =e => { sc.sound = !sc.sound; e.target.classList.toggle('on', sc.sound); };
+// One smack at a time (as in the game): lift, strike the next side, hold on contact.
+document.getElementById('sc-smack').onclick = () => { if (!scn) return; if (PE.on) PE.stop(); if (sc.loop) { sc.loop = false; scn.setLoop(false); refreshSceneUI(); } if (!scn.busy()) scn.cycle(); };
+document.getElementById('sc-clear').onclick = () => { if (scn) S.clearMarks(scn.s); };
+document.getElementById('sc-loop').onclick = () => {
+  if (PE.on) PE.stop();
+  sc.loop = !sc.loop;
+  if (scn) { if (!sc.loop) scn.side = sc.side; scn.setLoop(sc.loop); }
+  refreshSceneUI();
+};
+refreshSceneUI();
+for (const [key, unit] of [['speed', '×'], ['contactHold', ' s'], ['raisedHold', ' s']]) {
+  document.getElementById('s-t-' + key).oninput = e => {
+    sc.timing[key] = parseFloat(e.target.value);
+    document.getElementById('v-t-' + key).textContent = sc.timing[key].toFixed(2) + unit;
+  };
+}
+document.getElementById('s-aim').oninput = e => {
+  sc.palmAim = e.target.value / 100;
+  if (scn) scn.palmAim = sc.palmAim;
+  document.getElementById('v-aim').textContent = e.target.value + '%';
+};
+
+// Everyone currently on stage.
+const visibleChars = () => Object.values(chars).filter(c => c.group.visible);
+
+// ════════════════════════════════════════════════════════════════
+// POSE EDITOR — freezes the discipline scene at its beat so the bodies and
+// the implement can be reshaped by hand, then reports the result as numbers
+// for the engine. While it's on, scn.update isn't called (see animate) and
+// PE.frame keeps the handles on the joints instead. Edits are kept per
+// pairing, implement, beat and side (PE.saved), so moving between beats
+// doesn't lose them; the scene's own pose comes back when editing stops.
+// ════════════════════════════════════════════════════════════════
+const R2D = 180 / Math.PI, D2R = Math.PI / 180;
+const EDIT_BONES = BONES.filter(b => !b.startsWith('bust'));   // the bust bones are springs
+const SMALL = new Set(['fingersL', 'fingersR', 'thumbL', 'thumbR', 'thumb2L', 'thumb2R']);
+// Joints hung straight off the pelvis would drag the pelvis itself round: sliders only.
+const NO_DRAG = new Set(['spine1', 'thighL', 'thighR']);
+const ARM = s => ['upperArm' + s, 'forearm' + s, 'hand' + s], LEG = s => ['thigh' + s, 'shin' + s, 'foot' + s];
+// Bones that carry a hand: editing one lets that hand go (and it's pinned again where it ends up).
+const HAND_CHAIN = { L: new Set([...ARM('L'), 'fingersL', 'thumbL', 'thumb2L']), R: new Set([...ARM('R'), 'fingersR', 'thumbR', 'thumb2R']) };
+Object.assign(PE, { who: 'g', pin: true, sel: null, saved: {}, base: null, key: null, label: '', drag: null, src: null, press: null });
+
+const wpos = o => o.getWorldPosition(new THREE.Vector3());
+const wquat = o => o.getWorldQuaternion(new THREE.Quaternion());
+const eulerDeg = (q, order = 'YXZ') => { const e = new THREE.Euler().setFromQuaternion(q, order); return [e.x * R2D, e.y * R2D, e.z * R2D]; };
+const r1 = v => Math.round(v * 10) / 10 || 0;
+const fmtE = e => '[' + e.map(r1).join(', ') + ']';
+const fmtCm = v => '[' + [v.x, v.y, v.z].map(c => r1(c * 100)).join(', ') + ']';
+function setWorldQuat(bone, q) { bone.quaternion.copy(wquat(bone.parent).invert().multiply(q)); bone.updateMatrixWorld(true); }
+function setBoneEuler(bone, e) { bone.quaternion.setFromEuler(new THREE.Euler(e[0] * D2R, e[1] * D2R, e[2] * D2R, 'YXZ')); bone.updateMatrixWorld(true); }
+// Rotation whose X is `x` and Z is `z` (made square to x).
+function basis(x, z) {
+  x = x.clone().normalize(); const y = z.clone().cross(x).normalize();
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, x.clone().cross(y)));
+}
+
+const peWide = () => !!(scn && scn.tool && scn.tool.wide);
+const peKey = () => tab ? ['tab', tabKind, sc.giver, sc.subject].join('|') : [sc.position, sc.giver, sc.subject, sc.implement, sc.beat, sc.beat === 'contact' && !peWide() ? sc.side : ''].join('|');
+function peLabel() {
+  if (tab) return 'Relaxed · ' + EDITOR.tableaux.find(t => t[0] === tabKind)[1];   // (the base pose: the giver's relaxed, the subject's base)
+  const side = sc.beat !== 'contact' ? '' : peWide() ? ' (both sides)' : sc.side === 'L' ? ' (left)' : ' (right)';
+  const impl = document.querySelector(`#sc-implements button[data-impl="${sc.implement}"]`).textContent;
+  return `${BEATS.find(b => b[0] === sc.beat)[1]}${side} · ${impl}`;
+}
+
+// Two-bone IK for editing: puts the end joint of [a, b, c] on `target`, with the middle
+// joint bending the way it already does, each bone turned as little as it can be. Returns
+// the end bone's world rotation from before, for the caller to put back.
+function limbIK(ch, [a, b, c], target) {
+  const A = ch.bones[a], B = ch.bones[b], C = ch.bones[c], keep = wquat(C);
+  const pa = wpos(A), pb = wpos(B), pc = wpos(C);
+  const L1 = pa.distanceTo(pb), L2 = pb.distanceTo(pc);
+  const d = target.clone().sub(pa), dist = THREE.MathUtils.clamp(d.length(), Math.abs(L1 - L2) + 1e-4, (L1 + L2) * 0.9999);
+  d.normalize();
+  const bend = pb.clone().sub(pa); bend.addScaledVector(d, -bend.dot(d));
+  if (bend.lengthSq() < 1e-10) { bend.set(0, 1, 0).cross(d); if (bend.lengthSq() < 1e-10) bend.set(1, 0, 0).cross(d); }
+  bend.normalize();
+  const cosA = THREE.MathUtils.clamp((L1 * L1 + dist * dist - L2 * L2) / (2 * L1 * dist), -1, 1);
+  const E = pa.clone().addScaledVector(d, L1 * cosA).addScaledVector(bend, L1 * Math.sqrt(1 - cosA * cosA));
+  S.rotateBoneWorld(A, new THREE.Quaternion().setFromUnitVectors(pb.sub(pa).normalize(), E.sub(pa).normalize()));
+  const pb2 = wpos(B), pc2 = wpos(C), T = pa.clone().addScaledVector(d, dist);
+  S.rotateBoneWorld(B, new THREE.Quaternion().setFromUnitVectors(pc2.sub(pb2).normalize(), T.sub(pb2).normalize()));
+  return keep;
+}
+// A hand to a wrist position and world rotation. Any new roll about the forearm is shared
+// with it (60%, as the engine's setHandWorld does), but only the change: the twist the
+// wrist already has stays, so a pinned hand whose arm didn't move comes back unchanged.
+function handTo(ch, side, wrist, q) {
+  const fo = ch.bones['forearm' + side], ha = ch.bones['hand' + side], axis = ha.position.clone().normalize();
+  const twist = l => 2 * Math.atan2(axis.x * l.x + axis.y * l.y + axis.z * l.z, l.w);
+  const before = twist(ha.quaternion);
+  limbIK(ch, ARM(side), wrist);
+  let d = twist(wquat(fo).invert().multiply(q)) - before;
+  d = Math.atan2(Math.sin(d), Math.cos(d));
+  if (Math.abs(d) > 1e-5) { fo.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(axis, 0.6 * d)); fo.updateMatrixWorld(true); }
+  setWorldQuat(ha, q);
+}
+
+// The implement's frame: the striking face's centre, X along the long axis and Z out of the face.
+function toolPose() {
+  const T = scn && scn.tool; if (!T) return null;
+  const h = scn.g.bones.handR; h.updateMatrixWorld(true);
+  return { p: T.face.clone().applyMatrix4(h.matrixWorld), q: wquat(h).multiply(basis(T.axis, T.faceN)) };
+}
+// The hand is placed so the implement's face lands at `p`, turned to `q`; the arm follows.
+function placeTool(p, q) {
+  const T = scn.tool, Qh = q.clone().multiply(basis(T.axis, T.faceN).invert());
+  handTo(scn.g, 'R', p.clone().sub(T.face.clone().applyQuaternion(Qh)), Qh);
+}
+// Clearance of what the right hand holds (or the palm) from the subject's skin, in metres;
+// negative is inside. A wide blade is measured as the engine fits it (seatExcess).
+function rightClearance() {
+  const g = scn.g, T = scn.tool, h = g.bones.handR;
+  scn.s.group.updateMatrixWorld(true); h.updateMatrixWorld(true);
+  if (T && T.wide) {
+    const tp = toolPose(), n = new THREE.Vector3(0, 0, -1).applyQuaternion(tp.q), a = new THREE.Vector3(1, 0, 0).applyQuaternion(tp.q);
+    return -S.seatExcess(S.seatPoints(scn), tp.p, n, a, T);
+  }
+  const palmC = g.bones.fingersR.position.clone().normalize().multiplyScalar(0.42 * 0.106 * g.spec.H);
+  return S.restClearance(scn.s, T ? T.probes : [[palmC, 0.0085 * g.spec.H]], h.matrixWorld);
+}
+
+// State: each character's bone rotations, joint positions and placement, and the implement.
+function snapChar(ch, table) {
+  ch.group.updateMatrixWorld(true);
+  const o = { q: {}, at: {}, pos: ch.group.position.clone() };
+  for (const b of EDIT_BONES) { o.q[b] = ch.bones[b].quaternion.clone(); o.at[b] = wpos(ch.bones[b]); }
+  // The pose table's rotation, before the scene's IK, look and lean go on top.
+  if (table) { o.table = {}; for (const b of EDIT_BONES) o.table[b] = ch.pose[b].clone(); }
+  return o;
+}
+function snapState({ table = false, clear = false } = {}) {
+  const t = toolPose();
+  return { g: snapChar(scn.g, table), s: snapChar(scn.s, table), tool: t, clear: clear ? rightClearance() : null };
+}
+function applyState(st) {
+  for (const who of ['g', 's']) {
+    const ch = scn[who];
+    for (const b of EDIT_BONES) ch.bones[b].quaternion.copy(st[who].q[b]);
+    ch.group.position.copy(st[who].pos);
+    ch.group.updateMatrixWorld(true);
+  }
+}
+// What differs between two states.
+function peDiff(A, B) {
+  const bones = [];
+  for (const who of ['g', 's']) for (const b of EDIT_BONES) if (A[who].q[b].angleTo(B[who].q[b]) * R2D > 0.1) bones.push([who, b]);
+  const moved = ['g', 's'].filter(w => A[w].pos.distanceTo(B[w].pos) > 5e-4);
+  const tool = !!(A.tool && B.tool && (A.tool.p.distanceTo(B.tool.p) > 5e-4 || A.tool.q.angleTo(B.tool.q) * R2D > 0.1));
+  return { bones, moved, tool, any: bones.length > 0 || moved.length > 0 || tool };
+}
+
+// The skin presses (the engine's setPress slots) follow the hands that make them: the
+// striking hand or blade ('') and the resting left hand ('2').
+function grabPress() {
+  const s = scn.s, u = s.mesh.material.userData.uniforms, M = s.mesh.matrixWorld;
+  const slot = (k, hand) => ({ hand: scn.g.bones[hand].matrixWorld.clone(), p: u['uPressP' + k].value.clone().applyMatrix4(M), n: u['uPressN' + k].value.clone().transformDirection(M) });
+  const P = { '': slot('', 'handR'), '2': slot('2', 'handL') }, ax = u.uPressAx.value;
+  if (ax.x || ax.y || ax.z) P[''].ax = new THREE.Vector3(ax.x, ax.y, ax.z).transformDirection(M);
+  return P;
+}
+function followPress() {
+  const s = scn.s, u = s.mesh.material.userData.uniforms, inv = s.mesh.matrixWorld.clone().invert();
+  for (const [k, hand] of [['', 'handR'], ['2', 'handL']]) {
+    const P = PE.press[k], D = scn.g.bones[hand].matrixWorld.clone().multiply(P.hand.clone().invert());
+    u['uPressP' + k].value.copy(P.p).applyMatrix4(D).applyMatrix4(inv);
+    u['uPressN' + k].value.copy(P.n).transformDirection(D).transformDirection(inv);
+    if (P.ax) { const a = P.ax.clone().transformDirection(D).transformDirection(inv); u.uPressAx.value.set(a.x, a.y, a.z, u.uPressAx.value.w); }
+  }
+}
+
+// Every edit goes through here: the hands not being edited are held where they were.
+function peEdit(who, bone, fn) {
+  const ch = scn[who];
+  const pins = PE.pin && ['L', 'R'].filter(s => !HAND_CHAIN[s].has(bone)).map(s => [s, wpos(ch.bones['hand' + s]), wquat(ch.bones['hand' + s])]);
+  fn(ch);
+  ch.group.updateMatrixWorld(true);
+  if (pins) for (const [s, p, q] of pins) handTo(ch, s, p, q);
+  ch.group.updateMatrixWorld(true);
+  peRefresh(false);
+}
+// Dragging a joint: the pelvis moves the whole body; a wrist or ankle is placed by IK,
+// keeping the hand or foot's own rotation; anything else turns its parent bone so the
+// joint follows. With hands pinned, dragging an elbow swings it round the held hand.
+function peDragBone(b, t) {
+  const side = b.slice(-1);
+  if (b === 'pelvis') return peEdit(PE.who, b, ch => ch.group.position.add(t.clone().sub(wpos(ch.bones.pelvis))));
+  if (b === 'hand' + side) return peEdit(PE.who, b, ch => handTo(ch, side, t, wquat(ch.bones[b])));
+  if (b === 'foot' + side) return peEdit(PE.who, b, ch => setWorldQuat(ch.bones[b], limbIK(ch, LEG(side), t)));
+  // (Pinning goes by the bone that turns: a shoulder dragged keeps its hand where it was.)
+  peEdit(PE.who, b === 'forearm' + side ? 'elbow' : S.PARENT[b], ch => {
+    const P = ch.bones[b].parent, pp = wpos(P);
+    S.rotateBoneWorld(P, new THREE.Quaternion().setFromUnitVectors(wpos(ch.bones[b]).sub(pp).normalize(), t.clone().sub(pp).normalize()));
+  });
+}
+
+// ── Handles: a dot on each joint of the character being edited (left side blue, right
+// red), and a gold one on the implement's striking face with its normal (gold) and long
+// axis (pale). Drawn over the bodies.
+const peGroup = new THREE.Group(); peGroup.visible = false; scene.add(peGroup);
+const dotGeo = new THREE.SphereGeometry(1, 14, 10);
+function peDot(color, r) {
+  const m = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.9, toneMapped: false }));
+  m.renderOrder = 10; m.userData = { color, r }; m.scale.setScalar(r); peGroup.add(m); return m;
+}
+function peLine(color) {
+  const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true }));
+  l.renderOrder = 10; peGroup.add(l); return l;
+}
+const jointDots = Object.fromEntries(EDIT_BONES.map(b => [b, peDot(/L$/.test(b) ? 0x3d8bff : /R$/.test(b) ? 0xff4d4d : 0xf2f2f2, SMALL.has(b) ? 0.006 : 0.011)]));
+const toolDot = peDot(0xc9a84c, 0.015), toolN = peLine(0xc9a84c), toolA = peLine(0xb8b8c4);
+const handleList = () => [...EDIT_BONES.map(b => [b, jointDots[b]]), ['tool', toolDot]];
+const setLine = (l, a, b) => { l.geometry.attributes.position.setXYZ(0, a.x, a.y, a.z); l.geometry.attributes.position.setXYZ(1, b.x, b.y, b.z); l.geometry.attributes.position.needsUpdate = true; };
+
+PE.frame = () => {
+  if (!scn || !PE.base) return;
+  const ch = scn[PE.who];
+  ch.group.updateMatrixWorld(true); scn.g.group.updateMatrixWorld(true);
+  for (const b of EDIT_BONES) ch.bones[b].getWorldPosition(jointDots[b].position);
+  const tp = toolPose();
+  toolDot.visible = toolN.visible = toolA.visible = !!tp;
+  if (tp) {
+    toolDot.position.copy(tp.p);
+    setLine(toolN, tp.p, tp.p.clone().addScaledVector(new THREE.Vector3(0, 0, 1).applyQuaternion(tp.q), 0.08));
+    setLine(toolA, tp.p, tp.p.clone().addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(tp.q), 0.12));
+  }
+  followPress();
+};
+
+// Picking is by screen distance, so the small dots are easy to catch.
+const raycaster = new THREE.Raycaster();
+function pointerRay(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  raycaster.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), camera);
+  return raycaster.ray;
+}
+function pickHandle(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  let best = null, bestD = 14;
+  for (const [id, m] of handleList()) {
+    if (!m.visible) continue;
+    const v = m.position.clone().project(camera);
+    if (v.z > 1) continue;
+    const d = Math.hypot((v.x + 1) / 2 * r.width - (e.clientX - r.left), (1 - v.y) / 2 * r.height - (e.clientY - r.top)) - (id === 'tool' ? 4 : 0);
+    if (d < bestD) { bestD = d; best = id; }
+  }
+  return best;
+}
+// Captured on the view's container, so a press on a handle never reaches the orbit controls.
+viewEl.addEventListener('pointerdown', e => {
+  if (!PE.on || !scn || e.button !== 0) return;
+  const id = pickHandle(e); if (!id) return;
+  e.stopPropagation(); e.preventDefault();
+  PE.sel = id; peRefresh(true);
+  const at = (id === 'tool' ? toolDot : jointDots[id]).position.clone();
+  const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), at);
+  const hit = pointerRay(e).intersectPlane(plane, new THREE.Vector3());
+  PE.drag = { id, plane, off: hit ? at.sub(hit) : new THREE.Vector3(), x: e.clientX, y: e.clientY, moved: false };
+}, true);
+window.addEventListener('pointermove', e => {
+  const D = PE.drag; if (!D || !scn) return;
+  if (!D.moved && Math.hypot(e.clientX - D.x, e.clientY - D.y) < 3) return;   // a click only selects
+  D.moved = true;
+  const t = pointerRay(e).intersectPlane(D.plane, new THREE.Vector3()); if (!t) return;
+  t.add(D.off);
+  if (D.id === 'tool') peEdit('g', 'handR', () => placeTool(t, toolPose().q));
+  else if (!NO_DRAG.has(D.id)) peDragBone(D.id, t);
+});
+window.addEventListener('pointerup', () => { PE.drag = null; });
+window.addEventListener('keydown', e => { if (PE.on && e.key === 'Escape' && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) { PE.sel = null; peRefresh(true); } });
+
+// ── Panel rows: a slider and an exact number box. `get` reads the live value; `set`
+// applies one. While a row drives the edit, its own panel doesn't read back (so the
+// Euler angles don't wander as they're decomposed again).
+function peRow(el, label, min, max, step, unit, get, set, src) {
+  const row = document.createElement('div'); row.className = 'row';
+  row.innerHTML = `<label><span>${label}</span><span><input class="num" type="number" step="${step}"> ${unit}</span></label><input type="range" min="${min}" max="${max}" step="${step}">`;
+  const [num, range] = row.querySelectorAll('input');
+  const apply = v => { PE.src = src; set(v); PE.src = null; };
+  range.oninput = () => { num.value = (+range.value).toFixed(1); apply(+range.value); };
+  num.onchange = () => { const v = parseFloat(num.value); if (isFinite(v)) { range.value = v; apply(v); } };
+  el.appendChild(row);
+  const show = () => { const v = get(); range.value = v; num.value = v.toFixed(1); };
+  show();
+  return show;
+}
+function buildJointPanel() {
+  const wrap = document.getElementById('pe-joint'), box = document.getElementById('pe-joint-sliders');
+  const b = PE.on && scn && PE.sel && PE.sel !== 'tool' ? PE.sel : null;
+  wrap.style.display = b ? '' : 'none'; box.innerHTML = ''; PE.jointUI = null;
+  if (!b) return;
+  const ch = () => scn[PE.who], bone = () => ch().bones[b];
+  document.getElementById('pe-joint-name').textContent = `${b}, ${ch().spec.m.name}` + (NO_DRAG.has(b) ? ' (sliders only)' : '');
+  let e = eulerDeg(bone().quaternion);
+  const rows = ['X', 'Y', 'Z'].map((ax, i) => peRow(box, ax, -180, 180, 0.5, '°', () => e[i],
+    v => { e[i] = v; peEdit(PE.who, b, () => setBoneEuler(bone(), e)); }, 'joint'));
+  if (b === 'pelvis') {
+    box.insertAdjacentHTML('beforeend', '<div class="sub" style="margin:6px 0 3px">Whole body position (cm, world)</div>');
+    const home = PE.base[PE.who].pos;
+    rows.push(...['x', 'y', 'z'].map(ax => peRow(box, ax.toUpperCase(), r1((home[ax] - 0.3) * 100), r1((home[ax] + 0.3) * 100), 0.1, 'cm',
+      () => ch().group.position[ax] * 100, v => peEdit(PE.who, 'pelvis', c => { c.group.position[ax] = v / 100; }), 'joint')));
+  }
+  const reset = document.createElement('button');
+  reset.textContent = 'Reset joint'; reset.style.marginTop = '2px';
+  reset.onclick = () => peEdit(PE.who, b, c => {
+    c.bones[b].quaternion.copy(PE.base[PE.who].q[b]); c.bones[b].updateMatrixWorld(true);
+    if (b === 'pelvis') c.group.position.copy(PE.base[PE.who].pos);
+  });
+  box.appendChild(reset);
+  PE.jointUI = () => { if (PE.src === 'joint') return; e = eulerDeg(bone().quaternion); rows.forEach(r => r()); };
+}
+// The implement: its face centre in world cm, and its turn from the scene's own
+// orientation about its long axis (roll), across it (pitch) and about the face normal (turn).
+function buildToolPanel() {
+  const wrap = document.getElementById('pe-tool'), box = document.getElementById('pe-tool-sliders');
+  const tp = PE.on && scn && PE.base && toolPose();
+  wrap.style.display = tp ? '' : 'none'; box.innerHTML = ''; PE.toolUI = null;
+  if (!tp) return;
+  const home = PE.base.tool;
+  let p = tp.p.clone(), e = eulerDeg(home.q.clone().invert().multiply(tp.q), 'XYZ');
+  const move = () => peEdit('g', 'handR', () => placeTool(p, home.q.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(e[0] * D2R, e[1] * D2R, e[2] * D2R, 'XYZ')))));
+  const rows = ['x', 'y', 'z'].map(ax => peRow(box, ax.toUpperCase(), r1((home.p[ax] - 0.25) * 100), r1((home.p[ax] + 0.25) * 100), 0.1, 'cm',
+    () => p[ax] * 100, v => { p[ax] = v / 100; move(); }, 'tool'));
+  rows.push(...['Roll (long axis)', 'Pitch (across)', 'Turn (face normal)'].map((label, i) => peRow(box, label, -90, 90, 0.5, '°',
+    () => e[i], v => { e[i] = v; move(); }, 'tool')));
+  PE.toolUI = () => {
+    if (PE.src === 'tool') return;
+    const t = toolPose(); p = t.p; e = eulerDeg(home.q.clone().invert().multiply(t.q), 'XYZ');
+    rows.forEach(r => r());
+  };
+}
+
+function peRefresh(rebuild) {
+  const on = PE.on && !!scn && !!PE.base;
+  const btn = document.getElementById('pe-on');
+  btn.classList.toggle('on', PE.on); btn.textContent = PE.on ? 'Stop editing' : 'Edit pose';
+  document.getElementById('pe-pin').classList.toggle('on', PE.pin);
+  document.querySelectorAll('#pe-who button').forEach(b => b.classList.toggle('on', b.dataset.who === PE.who));
+  peGroup.visible = on;
+  for (const [id, m] of handleList()) {
+    const sel = id === PE.sel;
+    m.material.color.setHex(sel ? 0xffe27a : m.userData.color); m.material.opacity = sel ? 1 : 0.9;
+    m.scale.setScalar(m.userData.r * (sel ? 1.6 : 1));
+  }
+  if (rebuild) { buildJointPanel(); buildToolPanel(); }
+  else { if (PE.jointUI) PE.jointUI(); if (PE.toolUI) PE.toolUI(); }
+  const status = document.getElementById('pe-status'), banner = document.getElementById('pe-banner');
+  if (!on) { status.textContent = ''; banner.style.display = 'none'; return; }
+  const D = peDiff(PE.base, snapState());
+  const parts = [];
+  if (D.bones.length) parts.push(`${D.bones.length} joint${D.bones.length > 1 ? 's' : ''}`);
+  for (const w of D.moved) parts.push(`${w === 'g' ? 'disciplinarian' : 'subject'} moved`);
+  if (D.tool) parts.push('implement');
+  const others = Object.keys(PE.saved).filter(k => k !== PE.key).length;
+  status.textContent = `Frozen at ${PE.label}. ` + (parts.length ? `Edited: ${parts.join(', ')}.` : 'No edits yet.') + (others ? ` ${others} other beat${others > 1 ? 's' : ''} edited.` : '');
+  banner.style.display = 'block';
+  banner.innerHTML = `<b>Pose editor</b> · ${PE.label} · ${PE.who === 'g' ? 'disciplinarian' : 'subject'}'s joints` +
+    (PE.sel ? ` · <b>${PE.sel === 'tool' ? 'implement' : PE.sel}</b>` : '') + (PE.pin ? ' · hands pinned' : '') +
+    '<br>Drag a dot to move it; click one to fine-tune it in the panel. Esc deselects.';
+}
+
+// ── Lifecycle
+PE.start = () => {
+  if (!sc.on && !tab) document.getElementById('sc-on').click();   // shows the scene
+  if (!scn) return;
+  if (sc.loop) { sc.loop = false; scn.setLoop(false); refreshSceneUI(); }
+  scn.side = sc.side; scn.setBeat(sc.beat);   // (a smack leaves it driven)
+  PE.on = true; PE.base = null;
+  PE.settle();
+};
+// Runs the scene until it has come to rest at the beat, takes that as the base, and
+// puts back any edits already made to this beat.
+PE.settle = () => {
+  if (!scn) return;
+  if (PE.base && PE.base.scn === scn) for (const w of ['g', 's']) scn[w].group.position.copy(PE.base[w].pos);
+  for (let i = 0; i < 60; i++) scn.update(0.05);
+  if (scn.sync) scn.sync();
+  if (scn.chairPlant) EDITOR.hold(scn.s, scn.chairPlant);
+  PE.base = { ...snapState({ table: true, clear: true }), scn };
+  PE.key = peKey(); PE.label = peLabel();
+  PE.ctx = { position: tab ? tabKind : sc.position, giver: sc.giver, subject: sc.subject, implement: sc.implement, beat: sc.beat, side: sc.side, palmAim: sc.palmAim };
+  PE.press = grabPress();
+  const saved = PE.saved[PE.key];
+  if (saved) applyState(saved.edit);
+  if (PE.sel === 'tool' && !scn.tool) PE.sel = null;
+  PE.frame();
+  peRefresh(true);
+};
+// Remembers this beat's edits (or forgets them if it's back to the scene's own pose).
+PE.keep = () => {
+  if (!PE.on || !scn || !PE.base) return;
+  const edit = snapState({ clear: true }), { scn: _, ...base } = PE.base;
+  if (peDiff(base, edit).any) PE.saved[PE.key] = { label: PE.label, ctx: PE.ctx, base, edit };
+  else delete PE.saved[PE.key];
+};
+PE.stop = () => {
+  if (!PE.on) return;
+  PE.keep();
+  if (scn && PE.base) for (const w of ['g', 's']) scn[w].group.position.copy(PE.base[w].pos);
+  PE.on = false; PE.drag = null; PE.sel = null; PE.base = null;
+  peRefresh(true);
+};
+
+// ── Report: every edited beat (and the current one), as numbers the engine can take.
+function peReport() {
+  PE.keep();
+  const recs = Object.entries(PE.saved);
+  if (PE.on && PE.base && !PE.saved[PE.key]) {
+    const { scn: _, ...base } = PE.base;
+    recs.push([PE.key, { label: PE.label + ' (no edits)', ctx: PE.ctx, base, edit: base }]);
+  }
+  const L = ['Starlight pose editor report, ' + new Date().toISOString().slice(0, 16).replace('T', ' '),
+    'Conventions: bone rotations are the bone\'s local Euler angles in degrees [x, y, z], order YXZ, as in the engine\'s pose tables (degQ).',
+    '"table" is the pose-table value before the scene\'s IK, look and lean go on top (disciplinarian: GIVER_BASE + GIVER_BEAT.<beat>;',
+    'subject: SUBJECT_BASE blended toward SUBJECT_REACT at contact). "local Δ" is the edit as a rotation in the bone\'s own frame (YXZ).',
+    'Positions are world cm: the disciplinarian faces +Z, their right hand swings on the −X side, +Y is up.',
+    'Clearance: what the right hand holds (or its palm) against the subject\'s skin; negative is inside.', ''];
+  if (!recs.length) L.push('Nothing edited yet. Turn on Edit pose to start.');
+  for (const [, R] of recs) {
+    const { base: A, edit: B, ctx } = R, D = peDiff(A, B);
+    L.push(`== ${R.label} ==`, `${ctx.position === 'lap' ? '' : 'Position: ' + EDITOR.gamePos(ctx.position) + '. '}Disciplinarian ${PRESETS[ctx.giver].name}, subject ${PRESETS[ctx.subject].name}, palm angle ${Math.round(ctx.palmAim * 100)}%.`);
+    for (const who of ['g', 's']) {
+      const bones = D.bones.filter(x => x[0] === who).map(x => x[1]);
+      const moved = D.moved.includes(who);
+      if (!bones.length && !moved) continue;
+      L.push(`${who === 'g' ? 'Disciplinarian' : 'Subject'}:`);
+      for (const b of bones) {
+        const q0 = A[who].q[b], q1 = B[who].q[b], tab = A[who].table[b], ik = q0.angleTo(tab) * R2D > 0.5;
+        L.push(`  ${b}: ${fmtE(eulerDeg(q0))} → ${fmtE(eulerDeg(q1))}, turned ${r1(q0.angleTo(q1) * R2D)}°; local Δ ${fmtE(eulerDeg(q0.clone().invert().multiply(q1)))}; ` +
+          (ik ? `table ${fmtE(eulerDeg(tab))} (the scene changes it)` : 'scene = table'));
+      }
+      if (moved) L.push(`  whole body moved ${fmtCm(B[who].pos.clone().sub(A[who].pos))} cm (group position ${fmtCm(A[who].pos)} → ${fmtCm(B[who].pos)})`);
+      const joints = EDIT_BONES.filter(b => !SMALL.has(b) && A[who].at[b].distanceTo(B[who].at[b]) > 0.002);
+      if (joints.length) L.push('  joints moved (cm): ' + joints.map(b => `${b} ${fmtCm(A[who].at[b])} → ${fmtCm(B[who].at[b])}`).join('; '));
+    }
+    if (A.tool) {
+      const n = t => new THREE.Vector3(0, 0, 1).applyQuaternion(t.q), a = t => new THREE.Vector3(1, 0, 0).applyQuaternion(t.q), dir = v => '[' + [v.x, v.y, v.z].map(c => c.toFixed(3)).join(', ') + ']';
+      L.push(`Implement face centre (cm): ${fmtCm(A.tool.p)} → ${fmtCm(B.tool.p)}, moved ${fmtCm(B.tool.p.clone().sub(A.tool.p))} (${r1(A.tool.p.distanceTo(B.tool.p) * 100)} cm)`,
+        `  face normal ${dir(n(A.tool))} → ${dir(n(B.tool))}; long axis ${dir(a(A.tool))} → ${dir(a(B.tool))}; turned ${r1(A.tool.q.angleTo(B.tool.q) * R2D)}°, ` +
+        `roll/pitch/turn ${fmtE(eulerDeg(A.tool.q.clone().invert().multiply(B.tool.q), 'XYZ'))}`);
+    }
+    if (A.clear != null) L.push(`Clearance: ${r1(A.clear * 1000)} mm → ${r1(B.clear * 1000)} mm`);
+    L.push('');
+  }
+  return L.join('\n');
+}
+
+document.getElementById('pe-on').onclick = () => { if (PE.on) PE.stop(); else PE.start(); };
+document.getElementById('pe-pin').onclick = () => { PE.pin = !PE.pin; peRefresh(false); };
+document.getElementById('pe-reset').onclick = () => {
+  if (!PE.on || !PE.base) return;
+  delete PE.saved[PE.key]; applyState(PE.base); peRefresh(true);
+};
+document.querySelectorAll('#pe-who button').forEach(b => b.onclick = () => {
+  if (PE.who !== b.dataset.who && PE.sel !== 'tool') PE.sel = null;
+  PE.who = b.dataset.who; if (PE.on) PE.frame(); peRefresh(true);
+});
+document.getElementById('pe-report').onclick = () => {
+  const out = document.getElementById('pe-out'), text = peReport();
+  out.style.display = 'block'; out.value = text;
+  const status = document.getElementById('pe-status');
+  const done = ok => { peRefresh(false); status.textContent = (ok ? 'Report copied to the clipboard. ' : 'Report below: select it and copy. ') + status.textContent; };
+  try { navigator.clipboard.writeText(text).then(() => done(true), () => done(false)); } catch (e) { done(false); }
+};
+
+// ════════════════════════════════════════════════════════════════
+// LOOP
+// ════════════════════════════════════════════════════════════════
+let camGo = null;
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  for (const ch of visibleChars()) {
+    S.animateCharacter(ch, dt, t);
+    // A wide stance lowers the body; ease it at the pose's own rate so the feet stay down.
+    ch.group.position.y += (-(ch.stanceDrop || 0) - ch.group.position.y) * (1 - Math.exp(-dt * 7));
+    if (view.spin) ch.group.rotation.y += dt * 0.5;
+  }
+  if (tab && !PE.on) tab.tick(dt, t);
+  if (sess) { sess.frozen = PE.on; sess.tick(dt, t); }   // the game's own per-frame step for the scene (held still while the pose editor is on)
+  if (PE.on) { PE.frame(); if (sess) sess.applyPins(); }   // (the pose editor's own bones first, then the pinned feet are put back)
+  // Marks fade slowly (the scene's bodies fade in the session).
+  if (!(sc.on && sc.position === 'hips')) for (const ch of Object.values(chars)) S.fadeMarks(ch, dt);
+  const onStage = visibleChars();   // the bodies outside the scene (the line-up, the turntable)
+  for (const ch of onStage) {
+    ch.group.updateMatrixWorld(true);
+    S.bustSpring(ch, dt);
+  }
+  // Nobody passes through anybody: busts yield first, then the skin (see CONTACT).
+  for (const ch of onStage) S.bustContact(ch, onStage);
+  S.updateContacts(onStage);
+  const colliders = onStage.flatMap(S.bodyColliders);
+  for (const ch of onStage) S.hairStep(ch, dt, colliders);
+  for (const ch of onStage) S.faceStep(ch, view.faceLife === false ? 0 : dt);   // expression, blinks, eye movements
+  for (const ch of onStage) S.skirtStep(ch, dt, onStage, []);
+  for (const ch of onStage) S.bunchStep(ch);   // lowered garments' gathered waistbands
+  if (camGo) {   // a standard camera angle: eased to, then the view is yours again
+    const e = 1 - Math.exp(-dt * 5);
+    camera.position.lerp(camGo.pos, e); controls.target.lerp(camGo.tgt, e); camera.fov += (camGo.fov - camera.fov) * e; camera.updateProjectionMatrix();
+    if (camera.position.distanceTo(camGo.pos) < 0.01 && controls.target.distanceTo(camGo.tgt) < 0.01) camGo = null;
+  }
+  followHead();
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// ════════════════════════════════════════════════════════════════
+// REPORTS — the editor changes nothing in the game. A design or a pose is made permanent by pasting a report into the project.
+// ════════════════════════════════════════════════════════════════
+(() => {
+  const Ed = EDITOR.Ed, $ = id => document.getElementById(id);
+  const say = (t, kind) => { const m = $('ed-msg'); m.textContent = t || ''; m.style.color = kind === 'bad' ? '#f1a39b' : kind === 'ok' ? '#b9d9a5' : '#8a8a96'; };
+  const label = k => PRESETS[k].name;
+  const refresh = keys => { buildSliders(); buildClothing(); rebuild(keys); };
+  const baseOf = k => { const b = clone(EDITOR.builtIn[k]); b.expr = { ...S.EXPR_DEFAULTS, ...(b.expr || {}) }; return b; };   // (the expression sliders fill in the defaults; that is not a change)
+  const designOf = k => Ed.designReport(k, label(k), baseOf(k), current[k]);
+  const show = (text, note) => { const r = $('ed-report'); r.value = text; r.select(); say(note, 'ok'); };
+  $('ed-rdesign').onclick = () => show(designOf(view.selected), 'The report for ' + label(view.selected) + '. Copy it and paste it into the chat.');
+  $('ed-rall').onclick = () => {
+    const changed = ORDER.filter(k => Object.keys(Ed.diff(baseOf(k), current[k])).length);
+    show(changed.length ? changed.map(designOf).join('\n\n') : 'No design differs from the built-in one.', changed.length ? 'Reports for ' + changed.map(label).join(', ') + '.' : 'Nothing has been changed.');
+  };
+  $('ed-rposes').onclick = () => {
+    try { const r = Ed.parsePoses(peReport(), { position: 'auto' }); show(Ed.poseReport(r.entries), 'The pose report. Copy it and paste it into the chat.' + (r.warn.length ? '\n' + r.warn.join('\n') : '')); }
+    catch (e) { say('There is nothing to report yet: freeze the discipline scene in the pose editor, move something, then press this again. (' + e.message + ')', 'bad'); }
+  };
+  $('ed-copy').onclick = async () => {
+    const r = $('ed-report'); if (!r.value) return say('Make a report first.', 'bad');
+    r.select();
+    try { await navigator.clipboard.writeText(r.value); say('Copied.', 'ok'); } catch (e) { document.execCommand && document.execCommand('copy'); say('Selected: press Ctrl/Cmd+C to copy.'); }
+  };
+  $('ed-show').onclick = () => { $('ed-design').value = JSON.stringify(current[view.selected], null, 1); say('This is ' + label(view.selected) + ' as shown. Edit it and paste the changes back, or copy it elsewhere.'); };
+  $('ed-apply').onclick = () => {
+    try { const k = view.selected, patch = Ed.parseDesign($('ed-design').value); current[k] = Ed.deepMerge(current[k], patch); refresh([k]); say('Applied to the preview (' + Object.keys(patch).length + ' field(s)). Make a design report to keep it.', 'ok'); }
+    catch (e) { say('Could not read that design: ' + e.message, 'bad'); }
+  };
+  $('ed-revert').onclick = () => { const k = view.selected; current[k] = clone(PRESETS[k]); refresh([k]); say(label(k) + ' is back to the design in js/bodies.js.', 'ok'); };
+})();
+
+// Collapsible sections: each heading folds everything up to the next one. Which are
+// folded is remembered in this browser (per viewer), if storage is available.
+(() => {
+  let shut = {};
+  try { shut = JSON.parse(localStorage.getItem('fairyshoe-editor-folds') || '{}'); } catch (e) {}
+  const save = () => { try { localStorage.setItem('fairyshoe-editor-folds', JSON.stringify(shut)); } catch (e) {} };
+  document.querySelectorAll('#panel h3').forEach(h => {
+    const name = h.firstChild.textContent.trim().replace(/\s*—$/, '');
+    const body = [];
+    for (let e = h.nextElementSibling; e && e.tagName !== 'H3'; e = e.nextElementSibling) body.push(e);
+    const set = on => { h.classList.toggle('shut', on); body.forEach(e => e.classList.toggle('folded', on)); };
+    h.classList.add('fold'); set(!!shut[name]);
+    h.onclick = () => { shut[name] = !shut[name]; set(shut[name]); save(); };
+  });
+})();
+refreshTabs(); refreshPoses(); buildSliders(); buildClothing();
+rebuild(ORDER);
+animate();
+
+// Test hooks for automated screenshots
+window.__viewer = { S, view, chars, rebuild, placeChars, camera, controls,
+  applyViewToChar, current, sc, PE, placeTool, toolPose, rightClearance, get scn() { return scn; }, get tab() { return tab; }, get sess() { return sess; }, buildScene, buildClothing, applyPose, refreshTabs, fieldAt: (ch, q) => S.field(ch.spec, [q.x, q.y, q.z]) };
+})();
+</script>
+</body>
+</html>

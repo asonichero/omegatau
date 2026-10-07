@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- Harness for tests/skirt-physics.js: one resident in the discipline scene, driven by hand (no frame loop needed). -->
+<html><body style="margin:0;background:#000"><div id="view" style="position:fixed;inset:0;width:900px;height:600px"></div>
+<script src="/vendor/three.min.js"></script><script src="/vendor/OrbitControls.js"></script>
+<script src="/starlight-engine.js"></script><script src="/js/content.js"></script><script src="/js/edits.js"></script><script src="/js/poses.js"></script><script src="/js/room.js"></script><script src="/js/bodies.js"></script><script src="/js/scene.js"></script>
+<script>
+window.setup = function (id, pos, impl, mode) {
+  const B = FairyShoeBodies, C = FairyShoeContent;
+  const stage = window.stage || (window.stage = FairyShoeScene.createStage(document.getElementById('view')));
+  window.ses = stage.begin({ giver: B.keeper(window.__keeper || 'a'), subject: window.__patch ? FairyShoeEdits.deepMerge(B.spec(id), window.__patch) : B.spec(id), subjectId: id, position: pos, implement: impl, layers: { bottoms: true }, pain: { ...C.CHARACTERS[id].pain } });
+  window.clock = 0; window.skirt = ses.subject.skirt;
+  // (the game forces a skirt to be hitched up; here the mode is applied afterwards so the loose cloth is tested too)
+  // ('free' is simulated cloth, for the weight test; the discipline scenes' skirt is the shell)
+  if (skirt && mode === 'free') { Starlight.setSkirtShell(ses.subject, false); Starlight.setSkirtGathered(ses.subject, false); ses.scn.update(0.016); Starlight.settleSkirt(ses.subject, [ses.giver], [ses.scn.bench], 1.5, false); }
+  if (skirt && mode === 'down') Starlight.setSkirtGathered(ses.subject, false);
+  if (window.skirt) window.skirt.debug = true;
+  return !!window.skirt;
+};
+// Step the scene by hand: `seconds` of it in frames of `dt`, a smack every `every` seconds (0: none). Returns the skirt's stats.
+window.run = function (seconds, dt, every) {
+  let since = 99;
+  for (let i = 0; i < Math.round(seconds / dt); i++) {
+    clock += dt; since += dt;
+    if (every && since > every && ses.canStrike()) { ses.smack(); since = 0; }
+    ses.tick(dt, clock);
+  }
+  return skirt ? skirt.stats : null;
+};
+const hemY = () => { const S = skirt, N = S.N, n = S.R * N; let y = 0; for (let k = n - N; k < n; k++) y += S.p[3 * k + 1]; return y / N; };
+// Lift the whole cloth below the waist by `up` metres (it has not moved, so it is not carried along), then let it fall. Returns the
+// hem's height each `every` seconds for `seconds`, using frames of `dt`.
+window.drop = function (up, seconds, dt, every) {
+  const S = skirt, N = S.N, n = S.R * N;
+  for (let k = N; k < n; k++) for (const arr of [S.p, S.prev]) arr[3 * k + 1] += up;
+  S.stillT = 0; S.acc = 0;
+  const trace = [hemY()]; let t = 0, next = every;
+  while (t < seconds - 1e-9) { clock += dt; t += dt; ses.tick(dt, clock); if (t >= next - 1e-9) { trace.push(hemY()); next += every; } }
+  return trace;
+};
+window.hemY = hemY;
+window.maxSpeed = function () { const S = skirt, n = S.R * S.N; let m = 0; for (let k = S.N; k < n; k++) m = Math.max(m, Math.hypot(S.p[3 * k] - S.prev[3 * k], S.p[3 * k + 1] - S.prev[3 * k + 1], S.p[3 * k + 2] - S.prev[3 * k + 2])); return m; };
+window.mesh = () => skirt.mesh.geometry.attributes.position.array.every(Number.isFinite);
+</script></body></html>
